@@ -1,21 +1,9 @@
-"""
-AI Photo Booth — app.py
-========================
-Two-state UI:
-  State 1 (before capture): live camera + frame gallery + capture button
-  State 2 (after capture):  final photo + AI analysis + QR + download
-
-Features:
-  - Real-time frame overlay on live camera feed
-  - Auto-detected transparent photo window per frame template
-  - fit-cover compositing (no stretch, no black bars)
-  - AWS Rekognition — up to 2 faces (emotion + age)
-  - S3 upload + QR code + download
-"""
-
 import base64
 import threading
 import time
+import uuid
+import traceback
+import urllib.parse as _urlparse
 from io import BytesIO
 
 import av
@@ -31,21 +19,12 @@ import ai_personality as aip
 import caption_generator as cg
 import vibe_engine as ve
 
-# ─────────────────────────────────────────────────────────────────────────────
-# PAGE CONFIG  (must be the FIRST Streamlit call)
-# ─────────────────────────────────────────────────────────────────────────────
-
 st.set_page_config(
     page_title="AI Photo Booth ✨",
     page_icon="📸",
     layout="wide",
     initial_sidebar_state="collapsed",
 )
-
-# ─────────────────────────────────────────────────────────────────────────────
-# CSS — Fresh Minimal Fun Theme
-# ─────────────────────────────────────────────────────────────────────────────
-
 st.markdown("""
 <style>
 @import url('https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=DM+Sans:wght@400;500;600;700&display=swap');
@@ -484,6 +463,70 @@ code {
     pointer-events: none;
     animation: flash-animation 0.4s ease-out forwards;
 }
+
+/* ── Photostrip specific additions ── */
+.strip-card {
+    border-radius: 12px;
+    border: 2.5px solid transparent;
+    padding: 8px;
+    text-align: center;
+    background: rgba(255,255,255,0.03);
+    transition: all .25s ease;
+    cursor: pointer;
+    margin-bottom: 4px;
+}
+.strip-card:hover {
+    border-color: rgba(255,45,117,0.3);
+    box-shadow: 0 0 10px rgba(255,45,117,0.2);
+}
+.strip-card.selected {
+    border-color: #ff2d75;
+    box-shadow: 0 0 18px rgba(255,45,117,0.5), inset 0 0 6px rgba(255,45,117,0.15);
+}
+.countdown-text {
+    font-size: 3rem;
+    font-family: 'Space Grotesk', sans-serif;
+    font-weight: 800;
+    text-align: center;
+    background: linear-gradient(135deg, #ff2d75, #6c3bff);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    margin: 10px 0;
+}
+.home-card {
+    background: rgba(255,255,255,0.03);
+    border: 1px solid rgba(255,255,255,0.08);
+    border-radius: 20px;
+    padding: 40px;
+    text-align: center;
+    transition: all 0.3s ease;
+    cursor: pointer;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 15px;
+    height: 100%;
+}
+.home-card:hover {
+    border-color: rgba(255,45,117,0.4);
+    box-shadow: 0 10px 40px rgba(255,45,117,0.15);
+    transform: translateY(-5px);
+}
+.home-card-icon {
+    font-size: 4rem;
+}
+.home-card-title {
+    font-family: 'Space Grotesk', sans-serif;
+    font-size: 1.8rem;
+    font-weight: 700;
+    color: #f0f0f5;
+}
+.home-card-desc {
+    color: #a0a0b8;
+    font-size: 1rem;
+    line-height: 1.5;
+}
+
 </style>
 
 <!-- Tech grid overlay -->
@@ -521,11 +564,6 @@ code {
 <div class="float-emoji" style="left:85%;animation-duration:23s;animation-delay:-6s">🎉</div>
 <div class="float-emoji" style="left:92%;animation-duration:30s;animation-delay:-14s">💫</div>
 """, unsafe_allow_html=True)
-
-# ─────────────────────────────────────────────────────────────────────────────
-# JS — One-shot layout fix for first-load video sizing
-# ─────────────────────────────────────────────────────────────────────────────
-
 components.html("""
 <script>
 // Dispatch resize events so the browser recalculates the <video> element
@@ -1062,590 +1100,1227 @@ function copyLink() {
 # SESSION STATE  (initialised once)
 # ─────────────────────────────────────────────────────────────────────────────
 
+STRIP_TEMPLATES = {
+    "strip-1": {
+        "name": "Retro Event",
+        "path": "assets/strip-1.png",
+        "slots": [
+            {"x": 186, "y":  27, "w": 373, "h": 289},
+            {"x": 183, "y": 329, "w": 376, "h": 291},
+            {"x": 182, "y": 633, "w": 377, "h": 296},
+            {"x": 179, "y": 942, "w": 380, "h": 296},
+        ]
+    },
+    "strip-2": {
+        "name": "Neon Party",
+        "path": "assets/strip-2.png",
+        "slots": [
+            {"x": 180, "y":  41, "w": 376, "h": 280},
+            {"x": 180, "y": 354, "w": 376, "h": 281},
+            {"x": 179, "y": 670, "w": 375, "h": 281},
+            {"x": 180, "y": 983, "w": 376, "h": 281},
+        ]
+    },
+    "strip-3": {
+        "name": "Classic Film",
+        "path": "assets/strip-3.png",
+        "slots": [
+            {"x": 206, "y":  60, "w": 357, "h": 246},
+            {"x": 206, "y": 319, "w": 357, "h": 246},
+            {"x": 207, "y": 575, "w": 356, "h": 264},
+            {"x": 207, "y": 852, "w": 357, "h": 237},
+        ]
+    },
+}
+
+TARGET_RATIO = 4 / 3  # Standard landscape 4:3 webcam aspect ratio
+
+# ─────────────────────────────────────────────────────────────────────────────
+# IMAGE FILTERS
+# ─────────────────────────────────────────────────────────────────────────────
+
+def apply_bw_filter(img: np.ndarray) -> np.ndarray:
+    """High-quality grayscale conversion with slightly boosted contrast."""
+    gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
+    gray = cv2.convertScaleAbs(gray, alpha=1.1, beta=-5)
+    return cv2.cvtColor(gray, cv2.COLOR_GRAY2BGR)
+
+# Precompute LUT for Vintage filter for maximum performance (0 overhead at 30fps)
+_VINTAGE_LUT = np.zeros((256, 1, 3), dtype=np.uint8)
+for i in range(256):
+    # compress contrast / fade
+    val = (i * 0.9) + 15
+    b = min(255, max(0, val * 0.8))   # Less blue
+    g = min(255, max(0, val * 1.0))
+    r = min(255, max(0, val * 1.2))   # More red (warm)
+    _VINTAGE_LUT[i, 0, 0] = int(b)
+    _VINTAGE_LUT[i, 0, 1] = int(g)
+    _VINTAGE_LUT[i, 0, 2] = int(r)
+
+def apply_vintage_filter(img: np.ndarray) -> np.ndarray:
+    """Warm nostalgic tones, faded film look using a precomputed LUT."""
+    return cv2.LUT(img, _VINTAGE_LUT)
+
+# ─────────────────────────────────────────────────────────────────────────────
+# VIDEO PROCESSOR — crops webcam feed to 4:3 landscape, selfie-mirrored
+# ─────────────────────────────────────────────────────────────────────────────
+
+class StripVideoProcessor:
+    """Crop webcam feed to 4:3 landscape ratio with selfie-mirror and live filters."""
+
+    def __init__(self):
+        self.frame_bgr = None
+        self._lock = threading.Lock()
+        self.filter_mode = "color"
+
+    def recv(self, frame):
+        img = frame.to_ndarray(format="bgr24")
+        img = cv2.flip(img, 1)  # selfie mirror
+        h, w = img.shape[:2]
+        ratio = w / h
+
+        if ratio > TARGET_RATIO:
+            cw = int(h * TARGET_RATIO)
+            x0 = (w - cw) // 2
+            cropped = img[:, x0:x0 + cw]
+        else:
+            ch = int(w / TARGET_RATIO)
+            y0 = (h - ch) // 2
+            cropped = img[y0:y0 + ch, :]
+
+        # Apply selected filter to the cropped preview (and inherently the capture)
+        mode = getattr(self, "filter_mode", "color")
+        if mode == "bw":
+            cropped = apply_bw_filter(cropped)
+        elif mode == "vintage":
+            cropped = apply_vintage_filter(cropped)
+
+        with self._lock:
+            self.frame_bgr = cropped
+
+        return av.VideoFrame.from_ndarray(cropped, format="bgr24")
+
+# ─────────────────────────────────────────────────────────────────────────────
+# IMAGE PROCESSING
+# ─────────────────────────────────────────────────────────────────────────────
+
+def fit_cover(image: Image.Image, tw: int, th: int) -> Image.Image:
+    """Scale + center-crop *image* to exactly (tw × th) — 'cover' mode."""
+    sw, sh = image.size
+    if (sw / sh) > (tw / th):
+        nw, nh = int(sw * th / sh), th
+    else:
+        nw, nh = tw, int(sh * tw / sw)
+    r = image.resize((nw, nh), Image.LANCZOS)
+    l, t = (nw - tw) // 2, (nh - th) // 2
+    return r.crop((l, t, l + tw, t + th))
+
+
+@st.cache_resource
+def _load_template(template_path: str) -> Image.Image:
+    """Cache-load a strip template PNG to avoid repeated disk I/O."""
+    return Image.open(template_path).convert("RGBA")
+
+
+def create_photostrip(photos: list, template_id: str) -> Image.Image:
+    """
+    Compositing pipeline:
+      1. Create a black background canvas matching template dimensions.
+      2. Paste the 4 captured photos into each slot (fit-cover).
+      3. Alpha-composite the template PNG ON TOP (decorative overlay).
+    """
+    cfg = STRIP_TEMPLATES.get(template_id, STRIP_TEMPLATES["strip-1"])
+    template_img = _load_template(cfg["path"])
+    tw, th = template_img.size
+
+    # Background canvas
+    canvas = Image.new("RGBA", (tw, th), (0, 0, 0, 255))
+
+    # Paste photos into slots
+    for i, photo in enumerate(photos):
+        if i >= len(cfg["slots"]):
+            break
+        s = cfg["slots"][i]
+        fitted = fit_cover(photo, s["w"], s["h"])
+        canvas.paste(fitted.convert("RGB"), (s["x"], s["y"]))
+
+    # Overlay template on top
+    return Image.alpha_composite(canvas, template_img)
+
+
+@st.cache_resource
+def _load_gallery_thumb(path: str) -> Image.Image:
+    """Cache-load and downscale a strip template thumbnail for the gallery."""
+    thumb = Image.open(path).convert("RGBA")
+    thumb.thumbnail((140, 240), Image.Resampling.LANCZOS)
+    return thumb
+
+# ─────────────────────────────────────────────────────────────────────────────
+# MOBILE SHARE PAGE GENERATOR
+# ─────────────────────────────────────────────────────────────────────────────
+
+def generate_photostrip_share_page(image_url: str) -> str:
+    """Build a dark-themed, responsive HTML page for mobile share & download."""
+    return f"""<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Photostrip Capture</title>
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;700;900&display=swap');
+    body {{
+      margin: 0; padding: 20px;
+      background: #08080f; color: #f0f0f5;
+      font-family: 'Inter', sans-serif;
+      display: flex; flex-direction: column;
+      align-items: center; justify-content: center;
+      min-height: 100vh; box-sizing: border-box;
+    }}
+    .container {{
+      max-width: 480px; width: 100%; text-align: center;
+      background: rgba(18,18,30,0.6); backdrop-filter: blur(10px);
+      border: 1px solid rgba(255,255,255,0.05);
+      border-radius: 20px; padding: 24px;
+      box-shadow: 0 15px 35px rgba(0,0,0,0.5);
+    }}
+    h1 {{
+      font-size: 1.8rem; font-weight: 800; margin: 0 0 8px;
+      background: linear-gradient(135deg,#6c63ff,#e044ab);
+      -webkit-background-clip: text; -webkit-text-fill-color: transparent;
+    }}
+    p {{ color: #b0b0c0; font-size: .95rem; margin-bottom: 24px; }}
+    .image-preview {{
+      width: 100%; border-radius: 12px; overflow: hidden;
+      margin-bottom: 24px; box-shadow: 0 8px 24px rgba(0,0,0,0.3);
+      border: 2px solid rgba(255,255,255,0.1);
+      display: flex; justify-content: center; background: #000;
+    }}
+    .image-preview img {{
+      max-height: 55vh; width: auto;
+      object-fit: contain; display: block;
+    }}
+    .btn {{
+      display: flex; align-items: center; justify-content: center;
+      gap: 8px; width: 100%; padding: 14px; border-radius: 12px;
+      font-size: 1rem; font-weight: 600; border: none; cursor: pointer;
+      margin-bottom: 12px; transition: all .2s ease;
+      box-sizing: border-box; text-decoration: none;
+    }}
+    .btn-share {{ background: linear-gradient(135deg,#6c63ff,#e044ab); color: white; }}
+    .btn-download {{ background: linear-gradient(135deg,#11998e,#38ef7d); color: white; }}
+    .btn:active {{ transform: scale(0.98); }}
+    .footer {{ margin-top: 24px; font-size: .8rem; color: #555; }}
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1><span style="-webkit-text-fill-color: initial;">&#128247;</span> Photostrip Saved!</h1>
+    <p>Your photostrip memory is ready.</p>
+    <div class="image-preview">
+      <img id="booth-img" src="{image_url}" alt="Photostrip Capture">
+    </div>
+    <button class="btn btn-share" id="share-btn">&#128228; Share Photostrip</button>
+    <a href="{image_url}" download="photostrip_capture.png" class="btn btn-download" id="download-btn">
+      &#128229; Download Photostrip
+    </a>
+    <div class="footer">Crafted by <strong>Ankitha Jade</strong> and <strong>Sadhana S</strong></div>
+  </div>
+  <script>
+    const shareBtn = document.getElementById('share-btn');
+    const imageUrl = "{image_url}";
+    shareBtn.addEventListener('click', async () => {{
+      if (navigator.share) {{
+        try {{
+          const r = await fetch(imageUrl);
+          const blob = await r.blob();
+          const file = new File([blob], 'photo.png', {{ type: 'image/png' }});
+          if (navigator.canShare && navigator.canShare({{ files: [file] }})) {{
+            await navigator.share({{ files: [file], title: 'My Photostrip', text: 'Check out my photostrip!' }});
+            return;
+          }}
+        }} catch (e) {{ console.log("File share failed:", e); }}
+        try {{
+          await navigator.share({{ title: 'My Photostrip', text: 'Check out my photostrip!', url: window.location.href }});
+        }} catch (e) {{ console.log("URL share failed:", e); }}
+      }} else {{
+        alert("Native sharing is not supported. Use the download button instead.");
+      }}
+    }});
+  </script>
+</body>
+</html>
+"""
+
+# ─────────────────────────────────────────────────────────────────────────────
+# S3 UPLOAD HELPER
+# ─────────────────────────────────────────────────────────────────────────────
+
+def upload_to_s3(img_bytes: bytes) -> tuple[str, str | None]:
+    """
+    Upload the photostrip PNG + a companion HTML share page to S3.
+
+    Returns:
+        (photo_url, error_message)
+        photo_url — URL of the HTML share page, or "#" on failure.
+        error_message — None on success, or a string describing the error.
+    """
+    uid = uuid.uuid4().hex[:6]
+    png_key  = f"photostrip_{int(time.time())}_{uid}.png"
+    html_key = f"photostrip_{int(time.time())}_{uid}.html"
+
+    try:
+        # 1. Upload the PNG image
+        s3.put_object(Bucket=S3_BUCKET, Key=png_key,
+                      Body=img_bytes, ContentType="image/png")
+        raw_url = f"https://{S3_BUCKET}.s3.amazonaws.com/{png_key}"
+
+        # 2. Generate and upload the HTML share page
+        html_body = generate_photostrip_share_page(raw_url)
+        s3.put_object(Bucket=S3_BUCKET, Key=html_key,
+                      Body=html_body.encode("utf-8"), ContentType="text/html")
+
+        return f"https://{S3_BUCKET}.s3.amazonaws.com/{html_key}", None
+
+    except Exception as exc:
+        traceback.print_exc()
+        return "#", str(exc)
+
+# ─────────────────────────────────────────────────────────────────────────────
+# SESSION STATE
+# ─────────────────────────────────────────────────────────────────────────────
+
+
 def _init_state():
-    defaults = {
+    if "app_page" not in st.session_state:
+        st.session_state.app_page = "home"
+        
+    # Photobooth defaults
+    pb_defaults = {
         "captured":      False,
-        "frame_id":      "frame1",      # selected frame template id
+        "frame_id":      "frame1",      
         "camera_run_id": 0,
-        "final_image":   None,          # PIL image after capture
+        "final_image":   None,          
         "image_bytes":   None,
         "file_name":     None,
         "photo_url":     None,
-        "rek_faces":     [],            # list of face dicts from Rekognition
+        "rek_faces":     [],            
     }
-    for k, v in defaults.items():
+    for k, v in pb_defaults.items():
+        if k not in st.session_state:
+            st.session_state[k] = v
+            
+    # Photostrip defaults
+    ps_defaults = {
+        "ps_mode":            "capture",   
+        "ps_captured_photos": [],          
+        "ps_camera_run_id":   100, # Offset to avoid conflict with photobooth
+        "ps_final_strip":     None,
+        "ps_image_bytes":     None,
+        "ps_file_name":       None,
+        "ps_photo_url":       None,
+        "ps_is_capturing":    False,
+        "ps_selected_strip":  "strip-1",
+        "ps_selected_filter": "color",
+        "ps_upload_error":    None,
+    }
+    for k, v in ps_defaults.items():
         if k not in st.session_state:
             st.session_state[k] = v
 
-_init_state()
+def _reset_ps_session():
+    st.session_state.ps_camera_run_id += 1
+    st.session_state.ps_mode = "capture"
+    st.session_state.ps_captured_photos = []
+    st.session_state.ps_final_strip = None
+    st.session_state.ps_image_bytes = None
+    st.session_state.ps_file_name = None
+    st.session_state.ps_photo_url = None
+    st.session_state.ps_is_capturing = False
+    st.session_state.ps_upload_error = None
 
-# ─────────────────────────────────────────────────────────────────────────────
-# HEADER
-# ─────────────────────────────────────────────────────────────────────────────
 
-if not st.session_state.captured:
+def render_home_page():
     st.markdown(
-        "<h1 style='text-align:center;"
+        "<div style='text-align:center; padding-top: 10px;'>"
+        "<h1 style='"
         "font-family:Space Grotesk,sans-serif;"
-        "font-size:2.8rem;font-weight:800;margin-bottom:0;"
+        "font-size:3.5rem;font-weight:800;margin-bottom:0;"
         "letter-spacing:-0.04em;"
         "background:linear-gradient(135deg,#ff2d75 0%,#ff6b6b 40%,#6c3bff 100%);"
         "-webkit-background-clip:text;-webkit-text-fill-color:transparent;"
         "filter:drop-shadow(0 0 25px rgba(255,45,117,0.2));'>"
-        "AI Photo Booth</h1>",
+        "AI Photo Booth</h1>"
+        "<p style='font-size:1.2rem; color:#a0a0b8; margin-top:5px; font-weight:500; font-family:Space Grotesk, sans-serif;'>"
+        "AWS Student Builder Group, DBIT &nbsp;&bull;&nbsp; <span style='color:#ff6b6b;'>Vignanotsava 2k26</span>"
+        "</p>"
+        "<p style='font-size:0.9rem; color:#555; margin-top:4px; font-family:DM Sans, sans-serif;'>"
+        "Crafted by <span style='background:linear-gradient(135deg,#ff2d75,#6c3bff);-webkit-background-clip:text;-webkit-text-fill-color:transparent;font-weight:600;'>Ankitha Jade</span>"
+        " and <span style='background:linear-gradient(135deg,#ff2d75,#6c3bff);-webkit-background-clip:text;-webkit-text-fill-color:transparent;font-weight:600;'>Sadhana S</span>"
+        "</p>"
+        "</div>",
         unsafe_allow_html=True,
     )
-    st.markdown(
-        "<p class='tagline'>"
-        "Crafted by <span>Ankitha Jade</span> and <span>Sadhana S</span>"
-        "</p>",
-        unsafe_allow_html=True,
-    )
-    st.divider()
+    st.markdown("<br><br>", unsafe_allow_html=True)
 
-# ─────────────────────────────────────────────────────────────────────────────
-# HELPERS — load selected frame resource
-# ─────────────────────────────────────────────────────────────────────────────
+    col1, col2, col3, col4 = st.columns([1, 4, 4, 1], gap="large")
 
-def _selected_entry():
-    for f in FRAME_REGISTRY:
-        if f["id"] == st.session_state.frame_id:
-            return f
-    return FRAME_REGISTRY[0]
-
-
-def _selected_res():
-    entry = _selected_entry()
-    return load_frame_resource(entry["path"])
-
-
-# ─────────────────────────────────────────────────────────────────────────────
-# ══════════════════════  STATE 1 — BEFORE CAPTURE  ═══════════════════════════
-# ─────────────────────────────────────────────────────────────────────────────
-
-if not st.session_state.captured:
-
-    left, right = st.columns([3, 2], gap="large")
-
-    # ── LEFT: live camera + capture button ──────────────────────────────────
-    with left:
-        st.markdown("<p class='sec-label'>Live Camera</p>", unsafe_allow_html=True)
-        st.markdown("<p class='sec-title'>📸 Strike a Pose!</p>", unsafe_allow_html=True)
-
-        ctx = webrtc_streamer(
-            key=f"booth_{st.session_state.camera_run_id}",
-            desired_playing_state=True,
-            mode=WebRtcMode.SENDRECV,
-            video_processor_factory=VideoProcessor,
-            media_stream_constraints={
-                "video": {
-                    "width": {"ideal": 1080},
-                    "height": {"ideal": 1920},
-                    "frameRate": {"ideal": 30}
-                },
-                "audio": False
-            },
-            async_processing=True,
-            video_html_attrs=VideoHTMLAttributes(
-                autoPlay=True,
-                controls=False,
-                style={
-                    "width": "80%",
-                    "maxWidth": "275px",
-                    "aspectRatio": "2 / 3",
-                    "height": "auto",
-                    "objectFit": "contain",
-                    "borderRadius": "0px",
-                    "background": "#0c0c14",
-                    "display": "block",
-                    "margin": "0 auto",
-                },
-                muted=True,
-                playsInline=True
-            ),
+    with col2:
+        pb_clicked = st.button("Enter Photobooth", key="btn_go_pb", type="primary", use_container_width=True)
+        st.markdown(
+            "<div class='home-card' style='margin-top:-42px;'>"
+            "<div class='home-card-icon'>&#128247;</div>"
+            "<div class='home-card-title'>Photobooth</div>"
+            "<div class='home-card-desc'>Single frame capture with AI Personality Analysis, Vibe Check, and custom event frames.</div>"
+            "</div>",
+            unsafe_allow_html=True,
         )
+        if pb_clicked:
+            st.session_state.app_page = "photobooth"
+            st.rerun()
 
-        # Sync selected frame template to the VideoProcessor
-        if ctx.video_processor:
-            res = _selected_res()
-            ctx.video_processor.set_template(res)
-
-        st.divider()
-
-        # ── Capture button ────────────────────────────────────────────────
-        capture_clicked = st.button(
-            "📸  Capture Photo",
-            key="capture",
-            type="primary",
-            use_container_width=True,
+    with col3:
+        ps_clicked = st.button("Enter Photostrip", key="btn_go_ps", type="primary", use_container_width=True)
+        st.markdown(
+            "<div class='home-card' style='margin-top:-42px;'>"
+            "<div class='home-card-icon'>&#127902;</div>"
+            "<div class='home-card-title'>Photostrip</div>"
+            "<div class='home-card-desc'>Classic 4-photo strip capture with vintage/B&amp;W filters and printable layouts.</div>"
+            "</div>",
+            unsafe_allow_html=True,
         )
+        if ps_clicked:
+            st.session_state.app_page = "photostrip"
+            st.rerun()
 
-        if capture_clicked:
-            if not ctx.video_processor:
-                st.warning("⏳ Start the camera first, then click Capture.")
-            elif ctx.video_processor.portrait is None:
-                st.warning("⏳ No frame captured yet — wait a moment and try again.")
-            else:
-                # Trigger visual flash feedback
-                st.markdown("<div class='flash-active'></div>", unsafe_allow_html=True)
-                time.sleep(0.3)
 
-                with st.spinner("✨ Analyzing your photo with AI…"):
-
-                    portrait_bgr = ctx.video_processor.portrait
-                    portrait_rgb = cv2.cvtColor(portrait_bgr, cv2.COLOR_BGR2RGB)
-                    portrait_pil = Image.fromarray(portrait_rgb)
-
-                    res = _selected_res()
-
-                    # ── Rekognition ────────────────────────────────────
-                    rek_buf = BytesIO()
-                    portrait_pil.save(rek_buf, format="JPEG", quality=90)
-                    try:
-                        rek = rekognition.detect_faces(
-                            Image={"Bytes": rek_buf.getvalue()},
-                            Attributes=["ALL"],
-                        )
-                        faces = rek.get("FaceDetails", [])[:2]   # max 2
-                    except Exception as e:
-                        faces = []
-                        st.error(f"Rekognition error: {e}")
-
-                    # ── Composite photo into frame ──────────────────────
-                    final_img = composite(portrait_pil, res)
-
-                    # ── Encode to PNG bytes ────────────────────────────
-                    buf = BytesIO()
-                    final_img.save(buf, format="PNG")
-                    img_bytes = buf.getvalue()
-
-                    # ── Upload to S3 ───────────────────────────────────
-                    ts        = int(time.time())
-                    file_name = f"photo_{ts}.png"
-                    image_url = "#"   # raw image URL
-                    photo_url = "#"   # share-page URL (used for QR)
-                    try:
-                        s3.put_object(
-                            Bucket=S3_BUCKET, Key=file_name,
-                            Body=img_bytes,   ContentType="image/png",
-                        )
-                        image_url = (
-                            f"https://{S3_BUCKET}.s3.amazonaws.com/{file_name}"
-                        )
-                        # ── Generate & upload mobile share page ────────
-                        share_html = generate_share_page(image_url, file_name)
-                        share_key  = f"share_{ts}.html"
-                        s3.put_object(
-                            Bucket=S3_BUCKET, Key=share_key,
-                            Body=share_html.encode("utf-8"),
-                            ContentType="text/html; charset=utf-8",
-                        )
-                        photo_url = (
-                            f"https://{S3_BUCKET}.s3.amazonaws.com/{share_key}"
-                        )
-                    except Exception as e:
-                        st.error(f"S3 upload error: {e}")
-                        if image_url != "#":
-                            photo_url = image_url  # fallback: QR → raw image
-
-                    # ── Store in session state → trigger State 2 ───────
-                    st.session_state.captured    = True
-                    st.session_state.final_image = final_img
-                    st.session_state.image_bytes = img_bytes
-                    st.session_state.file_name   = file_name
-                    st.session_state.photo_url   = photo_url
-                    st.session_state.rek_faces   = faces
-
+def render_photobooth_page():
+    if not st.session_state.captured:
+        # Title row: back button + title inline
+        hdr_l, hdr_r = st.columns([1, 5], gap="small")
+        with hdr_l:
+            st.markdown('<div class="reset-btn" style="padding-top:6px;">', unsafe_allow_html=True)
+            if st.button("← Home", key="pb_back"):
+                st.session_state.app_page = "home"
                 st.rerun()
-
-    # ── RIGHT: frame gallery ──────────────────────────────────────────────
-    with right:
-        st.markdown("<p class='sec-label'>Templates</p>", unsafe_allow_html=True)
-        st.markdown("<p class='sec-title'>🖼️ Pick Your Frame</p>", unsafe_allow_html=True)
-
-        # Render in a compact grid
-        cols_per_row = 4
-        for row_idx in range(0, len(FRAME_REGISTRY), cols_per_row):
-            row_entries = FRAME_REGISTRY[row_idx : row_idx + cols_per_row]
-            gallery_cols = st.columns(cols_per_row)
-            for col_idx, entry in enumerate(row_entries):
-                with gallery_cols[col_idx]:
-                    is_active = st.session_state.frame_id == entry["id"]
-
-                    # Thumbnail (cached)
-                    if entry["path"]:
-                        thumb_img = get_gallery_thumbnail(entry["path"])
-                        st.image(thumb_img, use_container_width=True)
-                    else:
+            st.markdown('</div>', unsafe_allow_html=True)
+        with hdr_r:
+            st.markdown(
+                "<h1 style='"
+                "font-family:Space Grotesk,sans-serif;"
+                "font-size:2.2rem;font-weight:800;margin:0;"
+                "letter-spacing:-0.04em;"
+                "background:linear-gradient(135deg,#ff2d75 0%,#ff6b6b 40%,#6c3bff 100%);"
+                "-webkit-background-clip:text;-webkit-text-fill-color:transparent;"
+                "filter:drop-shadow(0 0 25px rgba(255,45,117,0.2));'>"
+                "AI Photo Booth</h1>"
+                "<p class='tagline' style='margin:2px 0 0;'>"
+                "Crafted by <span>Ankitha Jade</span> and <span>Sadhana S</span>"
+                "</p>",
+                unsafe_allow_html=True,
+            )
+        st.divider()
+    
+    # ─────────────────────────────────────────────────────────────────────────────
+    # HELPERS — load selected frame resource
+    # ─────────────────────────────────────────────────────────────────────────────
+    
+    def _selected_entry():
+        for f in FRAME_REGISTRY:
+            if f["id"] == st.session_state.frame_id:
+                return f
+        return FRAME_REGISTRY[0]
+    
+    
+    def _selected_res():
+        entry = _selected_entry()
+        return load_frame_resource(entry["path"])
+    
+    
+    # ─────────────────────────────────────────────────────────────────────────────
+    # ══════════════════════  STATE 1 — BEFORE CAPTURE  ═══════════════════════════
+    # ─────────────────────────────────────────────────────────────────────────────
+    
+    if not st.session_state.captured:
+    
+        left, right = st.columns([3, 2], gap="large")
+    
+        # ── LEFT: live camera + capture button ──────────────────────────────────
+        with left:
+            st.markdown("<p class='sec-label'>Live Camera</p>", unsafe_allow_html=True)
+            st.markdown("<p class='sec-title'>📸 Strike a Pose!</p>", unsafe_allow_html=True)
+    
+            ctx = webrtc_streamer(
+                key=f"booth_{st.session_state.camera_run_id}",
+                desired_playing_state=True,
+                mode=WebRtcMode.SENDRECV,
+                video_processor_factory=VideoProcessor,
+                media_stream_constraints={
+                    "video": {
+                        "width": {"ideal": 1080},
+                        "height": {"ideal": 1920},
+                        "frameRate": {"ideal": 30}
+                    },
+                    "audio": False
+                },
+                async_processing=True,
+                video_html_attrs=VideoHTMLAttributes(
+                    autoPlay=True,
+                    controls=False,
+                    style={
+                        "width": "80%",
+                        "maxWidth": "275px",
+                        "aspectRatio": "2 / 3",
+                        "height": "auto",
+                        "objectFit": "contain",
+                        "borderRadius": "0px",
+                        "background": "#0c0c14",
+                        "display": "block",
+                        "margin": "0 auto",
+                    },
+                    muted=True,
+                    playsInline=True
+                ),
+            )
+    
+            # Sync selected frame template to the VideoProcessor
+            if ctx.video_processor:
+                res = _selected_res()
+                ctx.video_processor.set_template(res)
+    
+            st.divider()
+    
+            # ── Capture button ────────────────────────────────────────────────
+            capture_clicked = st.button(
+                "📸  Capture Photo",
+                key="capture",
+                type="primary",
+                use_container_width=True,
+            )
+    
+            if capture_clicked:
+                if not ctx.video_processor:
+                    st.warning("⏳ Start the camera first, then click Capture.")
+                elif ctx.video_processor.portrait is None:
+                    st.warning("⏳ No frame captured yet — wait a moment and try again.")
+                else:
+                    # Trigger visual flash feedback
+                    st.markdown("<div class='flash-active'></div>", unsafe_allow_html=True)
+                    time.sleep(0.3)
+    
+                    with st.spinner("✨ Analyzing your photo with AI…"):
+    
+                        portrait_bgr = ctx.video_processor.portrait
+                        portrait_rgb = cv2.cvtColor(portrait_bgr, cv2.COLOR_BGR2RGB)
+                        portrait_pil = Image.fromarray(portrait_rgb)
+    
+                        res = _selected_res()
+    
+                        # ── Rekognition ────────────────────────────────────
+                        rek_buf = BytesIO()
+                        portrait_pil.save(rek_buf, format="JPEG", quality=90)
+                        try:
+                            rek = rekognition.detect_faces(
+                                Image={"Bytes": rek_buf.getvalue()},
+                                Attributes=["ALL"],
+                            )
+                            faces = rek.get("FaceDetails", [])[:2]   # max 2
+                        except Exception as e:
+                            faces = []
+                            st.error(f"Rekognition error: {e}")
+    
+                        # ── Composite photo into frame ──────────────────────
+                        final_img = composite(portrait_pil, res)
+    
+                        # ── Encode to PNG bytes ────────────────────────────
+                        buf = BytesIO()
+                        final_img.save(buf, format="PNG")
+                        img_bytes = buf.getvalue()
+    
+                        # ── Upload to S3 ───────────────────────────────────
+                        ts        = int(time.time())
+                        uid       = uuid.uuid4().hex[:6]
+                        file_name = f"photo_{ts}_{uid}.png"
+                        image_url = "#"   # raw image URL
+                        photo_url = "#"   # share-page URL (used for QR)
+                        try:
+                            s3.put_object(
+                                Bucket=S3_BUCKET, Key=file_name,
+                                Body=img_bytes,   ContentType="image/png",
+                            )
+                            image_url = (
+                                f"https://{S3_BUCKET}.s3.amazonaws.com/{file_name}"
+                            )
+                            # ── Generate & upload mobile share page ────────
+                            share_html = generate_share_page(image_url, file_name)
+                            share_key  = f"share_{ts}_{uid}.html"
+                            s3.put_object(
+                                Bucket=S3_BUCKET, Key=share_key,
+                                Body=share_html.encode("utf-8"),
+                                ContentType="text/html; charset=utf-8",
+                            )
+                            photo_url = (
+                                f"https://{S3_BUCKET}.s3.amazonaws.com/{share_key}"
+                            )
+                        except Exception as e:
+                            st.error(f"S3 upload error: {e}")
+                            if image_url != "#":
+                                photo_url = image_url  # fallback: QR → raw image
+    
+                        # ── Store in session state → trigger State 2 ───────
+                        st.session_state.captured    = True
+                        st.session_state.final_image = final_img
+                        st.session_state.image_bytes = img_bytes
+                        st.session_state.file_name   = file_name
+                        st.session_state.photo_url   = photo_url
+                        st.session_state.rek_faces   = faces
+    
+                    st.rerun()
+    
+        # ── RIGHT: frame gallery ──────────────────────────────────────────────
+        with right:
+            st.markdown("<p class='sec-label'>Templates</p>", unsafe_allow_html=True)
+            st.markdown("<p class='sec-title'>🖼️ Pick Your Frame</p>", unsafe_allow_html=True)
+    
+            # Render in a compact grid
+            cols_per_row = 4
+            for row_idx in range(0, len(FRAME_REGISTRY), cols_per_row):
+                row_entries = FRAME_REGISTRY[row_idx : row_idx + cols_per_row]
+                gallery_cols = st.columns(cols_per_row)
+                for col_idx, entry in enumerate(row_entries):
+                    with gallery_cols[col_idx]:
+                        is_active = st.session_state.frame_id == entry["id"]
+    
+                        # Thumbnail (cached)
+                        if entry["path"]:
+                            thumb_img = get_gallery_thumbnail(entry["path"])
+                            st.image(thumb_img, use_container_width=True)
+                        else:
+                            st.markdown(
+                                "<div class='no-frame-ph'>✕</div>",
+                                unsafe_allow_html=True,
+                            )
+    
+                        # Select button
+                        btn_class = "frame-active" if is_active else "frame-inactive"
+                        btn_label = f"✓ {entry['label']}" if is_active else entry["label"]
+                        st.markdown(f"<div class='{btn_class}'>", unsafe_allow_html=True)
+                        if st.button(btn_label, key=f"frame_btn_{entry['id']}",
+                                     use_container_width=True):
+                            st.session_state.frame_id = entry["id"]
+                            st.rerun()
+                        st.markdown("</div>", unsafe_allow_html=True)
+    
+    
+    # ─────────────────────────────────────────────────────────────────────────────
+    # ══════════════════════  STATE 2 — AFTER CAPTURE  ════════════════════════════
+    # ─────────────────────────────────────────────────────────────────────────────
+    
+    else:
+        left, right = st.columns([2, 3], gap="large")
+    
+        # ── LEFT: final framed photo ───────────────────────────────────────────
+        with left:
+            st.markdown(
+                "<h1 style='text-align:left;"
+                "font-family:Space Grotesk,sans-serif;"
+                "font-size:2.4rem;font-weight:800;margin-bottom:0;"
+                "letter-spacing:-0.04em;"
+                "background:linear-gradient(135deg,#ff2d75 0%,#ff6b6b 40%,#6c3bff 100%);"
+                "-webkit-background-clip:text;-webkit-text-fill-color:transparent;"
+                "filter:drop-shadow(0 0 25px rgba(255,45,117,0.2));'>"
+                "AI Photo Booth</h1>",
+                unsafe_allow_html=True,
+            )
+            st.markdown(
+                "<p class='tagline' style='text-align:left; margin-left:0; padding-left:0; margin-bottom: 0px;'>"
+                "Crafted by <span>Ankitha Jade</span> and <span>Sadhana S</span>"
+                "</p>",
+                unsafe_allow_html=True,
+            )
+            st.divider()
+    
+            st.markdown("<p class='sec-label'>Result</p>", unsafe_allow_html=True)
+            st.markdown("<p class='sec-title'>🎉 Looking Great!</p>", unsafe_allow_html=True)
+            st.image(
+                st.session_state.final_image,
+                use_container_width=True,
+            )
+    
+            # Reset button
+            st.markdown('<div class="reset-btn">', unsafe_allow_html=True)
+            if st.button("🔄  Take Another Photo", key="reset", use_container_width=True):
+                st.session_state.camera_run_id += 1
+                for k in ["captured", "final_image", "image_bytes",
+                          "file_name", "photo_url", "rek_faces"]:
+                    st.session_state[k] = (
+                        False if k == "captured" else
+                        [] if k == "rek_faces" else None
+                    )
+                st.rerun()
+            st.markdown("</div>", unsafe_allow_html=True)
+    
+        # ── RIGHT: AI analysis + QR + download ────────────────────────────────
+        with right:
+    
+            # ── AI Analysis ────────────────────────────────────────────────
+            st.markdown("<p class='sec-label'>AI Insights</p>", unsafe_allow_html=True)
+            st.markdown("<p class='sec-title'>🤖 Here's What AI Sees</p>", unsafe_allow_html=True)
+    
+            faces = st.session_state.rek_faces
+    
+            if not faces:
+                st.info("🤷 No faces detected — try again with better lighting!")
+            else:
+                # ═════════════════════════════════════════════════════════════════
+                # CASE A: TWO OR MORE PEOPLE DETECTED (SIDE-BY-SIDE COLUMNS)
+                # ═════════════════════════════════════════════════════════════════
+                if len(faces) >= 2:
+                    # 1. Team Vibe & QR Code Side-by-Side
+                    st.markdown("<p class='sec-label'>Team Chemistry & Share</p>", unsafe_allow_html=True)
+                    vibe_col, qr_col = st.columns([3, 2], gap="medium")
+                    with vibe_col:
+                        group_vibe = ve.get_group_vibe(faces)
                         st.markdown(
-                            "<div class='no-frame-ph'>✕</div>",
+                            f"<div class='ai-face-card' style='background: linear-gradient(135deg, rgba(108,59,255,0.08), rgba(255,45,117,0.08)); border-color: rgba(108,59,255,0.25); text-align: center; height: 130px; display: flex; flex-direction: column; justify-content: center; align-items: center; margin-bottom: 0px; padding: 15px; box-sizing: border-box;'>"
+                            f"<p class='sec-label' style='color: #a855f7; margin-bottom: 4px; font-size: 0.65rem; text-transform: uppercase;'>Team Vibe</p>"
+                            f"<h4 style='margin: 0; font-family: \"Space Grotesk\", sans-serif; font-weight: 700; color: #f0f0f5; font-size: 1.1rem;'>✨ {group_vibe}</h4>"
+                            f"</div>",
+                            unsafe_allow_html=True
+                        )
+                    with qr_col:
+                        url = st.session_state.photo_url
+                        if url and url != "#":
+                            qr_pil = qrcode.make(url)
+                            qr_buf = BytesIO()
+                            qr_pil.save(qr_buf, format="PNG")
+                            qr_b64 = base64.b64encode(qr_buf.getvalue()).decode("utf-8")
+                            st.markdown(
+                                f"<div style='display: flex; align-items: center; justify-content: center; height: 130px; box-sizing: border-box;'>"
+                                f"<img src='data:image/png;base64,{qr_b64}' style='width: 130px; height: 130px; border-radius: 12px; border: 1.5px solid rgba(255,255,255,0.08);' />"
+                                f"</div>",
+                                unsafe_allow_html=True
+                            )
+                        else:
+                            st.info("Photo URL not available.")
+    
+                    st.divider()
+    
+                    # 2. Extract Data for both people independently
+                    f1_data = faces[0]
+                    f2_data = faces[1]
+    
+                    p1_emotion = max(f1_data["Emotions"], key=lambda e: e["Confidence"])
+                    p1_age_lo  = f1_data["AgeRange"]["Low"]
+                    p1_age_hi  = f1_data["AgeRange"]["High"]
+                    p1_personality = aip.get_personality(f1_data)
+                    p1_caption = cg.get_caption(f1_data)
+                    p1_badges = aip.get_badges(f1_data)
+                    p1_vibes = ve.get_vibes(f1_data)
+    
+                    p2_emotion = max(f2_data["Emotions"], key=lambda e: e["Confidence"])
+                    p2_age_lo  = f2_data["AgeRange"]["Low"]
+                    p2_age_hi  = f2_data["AgeRange"]["High"]
+                    p2_personality = aip.get_personality(f2_data)
+                    p2_caption = cg.get_caption(f2_data)
+                    p2_badges = aip.get_badges(f2_data)
+                    p2_vibes = ve.get_vibes(f2_data)
+    
+                    # Emoji helper mapping
+                    emoji_map = {
+                        "HAPPY": "😄", "SAD": "😢", "ANGRY": "😠",
+                        "CONFUSED": "🤔", "DISGUSTED": "🤢", "SURPRISED": "😲",
+                        "CALM": "😌", "FEAR": "😰",
+                    }
+                    p1_emoji = emoji_map.get(p1_emotion["Type"], "🎭")
+                    p2_emoji = emoji_map.get(p2_emotion["Type"], "🎭")
+    
+                    # 3. Two columns side-by-side
+                    p1_col, p2_col = st.columns(2, gap="medium")
+    
+                    with p1_col:
+                        st.markdown(
+                            f"<div class='ai-face-card' style='margin-bottom: 12px;'>"
+                            f"<div style='display: flex; justify-content: space-between; align-items: center; margin-bottom: 4px;'>"
+                            f"<p class='ai-face-label' style='margin: 0;'>{p1_emoji} Person 1</p>"
+                            f"<div style='display: flex; gap: 4px; align-items: center; flex-wrap: wrap;'>"
+                            f"<span style='background: rgba(255,45,117,0.15); color: #ff6b6b; padding: 2px 6px; border-radius: 6px; font-size: 0.72rem; font-weight: 600; font-family: \"Space Grotesk\"; border: 1px solid rgba(255,45,117,0.2);'>{p1_age_lo}–{p1_age_hi} yrs</span>"
+                            f"<span style='background: rgba(108,59,255,0.15); color: #a855f7; padding: 2px 6px; border-radius: 6px; font-size: 0.72rem; font-weight: 600; font-family: \"Space Grotesk\"; border: 1px solid rgba(108,59,255,0.2);'>{p1_emoji} {p1_emotion['Type'].capitalize()}</span>"
+                            f"</div>"
+                            f"</div>"
+                            f"<p style='margin: 6px 0 0; font-size: 0.8rem; color: #a0a0b8; font-style: italic;'>\"{p1_caption}\"</p>"
+                            f"</div>",
                             unsafe_allow_html=True,
                         )
+    
+                        st.markdown(
+                            f"<div class='ai-insight-card' style='background: linear-gradient(135deg, rgba(255,45,117,0.05), rgba(108,59,255,0.05)); border: 1px solid rgba(255,45,117,0.15); border-radius: 12px; padding: 10px; margin-bottom: 10px; text-align: center;'>"
+                            f"<p style='font-family: \"Space Grotesk\", sans-serif; font-size: 0.65rem; text-transform: uppercase; letter-spacing: 0.1em; color: #ff6b6b; margin: 0 0 2px 0;'>AI Persona</p>"
+                            f"<h3 style='font-family: \"Space Grotesk\", sans-serif; font-size: 0.95rem; font-weight: 700; background: linear-gradient(135deg, #00d4ff, #7b2fff, #e044ab); -webkit-background-clip: text; -webkit-text-fill-color: transparent; margin: 0;'>{p1_personality}</h3>"
+                            f"</div>",
+                            unsafe_allow_html=True,
+                        )
+    
+                        p1_badge_html = "".join([
+                            f"<span style='background: rgba(108,59,255,0.12); color: #a855f7; border: 1px solid rgba(108,59,255,0.2); padding: 3px 8px; border-radius: 20px; font-size: 0.65rem; font-weight: 600; font-family: \"DM Sans\";'>{badge}</span>"
+                            for badge in p1_badges
+                        ])
+                        st.markdown(
+                            f"<div style='display: flex; flex-wrap: wrap; gap: 4px; justify-content: center; margin-bottom: 10px;'>{p1_badge_html}</div>",
+                            unsafe_allow_html=True
+                        )
+    
+                        for label, val in p1_vibes.items():
+                            st.markdown(
+                                f"<div style='display: flex; justify-content: space-between; font-size: 0.72rem; margin-bottom: 1px;'>"
+                                f"<span style='color: #888; font-weight: 500;'>{label}</span>"
+                                f"<span style='color: #00d4ff; font-weight: 600; font-family: Space Grotesk;'>{val}</span>"
+                                f"</div>",
+                                unsafe_allow_html=True
+                            )
+                            val_str = str(val)
+                            if "MAX" in val_str:
+                                progress_val = 100
+                            elif "CRITICAL" in val_str:
+                                progress_val = 15
+                            else:
+                                try:
+                                    progress_val = int(val_str.replace("%", ""))
+                                except ValueError:
+                                    progress_val = 50
+                            st.progress(progress_val)
+    
+                        # Move Full Breakdown under Person 1 column
+                        with st.expander("Person 1 Full Breakdown"):
+                            for e in sorted(
+                                f1_data["Emotions"],
+                                key=lambda x: x["Confidence"], reverse=True,
+                            ):
+                                st.progress(
+                                    min(int(e["Confidence"]), 100),
+                                    text=f"{e['Type'].capitalize()} ({e['Confidence']:.1f}%)"
+                                )
+    
+                    with p2_col:
+                        st.markdown(
+                            f"<div class='ai-face-card' style='margin-bottom: 12px;'>"
+                            f"<div style='display: flex; justify-content: space-between; align-items: center; margin-bottom: 4px;'>"
+                            f"<p class='ai-face-label' style='margin: 0;'>{p2_emoji} Person 2</p>"
+                            f"<div style='display: flex; gap: 4px; align-items: center; flex-wrap: wrap;'>"
+                            f"<span style='background: rgba(255,45,117,0.15); color: #ff6b6b; padding: 2px 6px; border-radius: 6px; font-size: 0.72rem; font-weight: 600; font-family: \"Space Grotesk\"; border: 1px solid rgba(255,45,117,0.2);'>{p2_age_lo}–{p2_age_hi} yrs</span>"
+                            f"<span style='background: rgba(108,59,255,0.15); color: #a855f7; padding: 2px 6px; border-radius: 6px; font-size: 0.72rem; font-weight: 600; font-family: \"Space Grotesk\"; border: 1px solid rgba(108,59,255,0.2);'>{p2_emoji} {p2_emotion['Type'].capitalize()}</span>"
+                            f"</div>"
+                            f"</div>"
+                            f"<p style='margin: 6px 0 0; font-size: 0.8rem; color: #a0a0b8; font-style: italic;'>\"{p2_caption}\"</p>"
+                            f"</div>",
+                            unsafe_allow_html=True,
+                        )
+    
+                        st.markdown(
+                            f"<div class='ai-insight-card' style='background: linear-gradient(135deg, rgba(255,45,117,0.05), rgba(108,59,255,0.05)); border: 1px solid rgba(255,45,117,0.15); border-radius: 12px; padding: 10px; margin-bottom: 10px; text-align: center;'>"
+                            f"<p style='font-family: \"Space Grotesk\", sans-serif; font-size: 0.65rem; text-transform: uppercase; letter-spacing: 0.1em; color: #ff6b6b; margin: 0 0 2px 0;'>AI Persona</p>"
+                            f"<h3 style='font-family: \"Space Grotesk\", sans-serif; font-size: 0.95rem; font-weight: 700; background: linear-gradient(135deg, #00d4ff, #7b2fff, #e044ab); -webkit-background-clip: text; -webkit-text-fill-color: transparent; margin: 0;'>{p2_personality}</h3>"
+                            f"</div>",
+                            unsafe_allow_html=True,
+                        )
+    
+                        p2_badge_html = "".join([
+                            f"<span style='background: rgba(108,59,255,0.12); color: #a855f7; border: 1px solid rgba(108,59,255,0.2); padding: 3px 8px; border-radius: 20px; font-size: 0.65rem; font-weight: 600; font-family: \"DM Sans\";'>{badge}</span>"
+                            for badge in p2_badges
+                        ])
+                        st.markdown(
+                            f"<div style='display: flex; flex-wrap: wrap; gap: 4px; justify-content: center; margin-bottom: 10px;'>{p2_badge_html}</div>",
+                            unsafe_allow_html=True
+                        )
+    
+                        for label, val in p2_vibes.items():
+                            st.markdown(
+                                f"<div style='display: flex; justify-content: space-between; font-size: 0.72rem; margin-bottom: 1px;'>"
+                                f"<span style='color: #888; font-weight: 500;'>{label}</span>"
+                                f"<span style='color: #00d4ff; font-weight: 600; font-family: Space Grotesk;'>{val}</span>"
+                                f"</div>",
+                                unsafe_allow_html=True
+                            )
+                            val_str = str(val)
+                            if "MAX" in val_str:
+                                progress_val = 100
+                            elif "CRITICAL" in val_str:
+                                progress_val = 15
+                            else:
+                                try:
+                                    progress_val = int(val_str.replace("%", ""))
+                                except ValueError:
+                                    progress_val = 50
+                            st.progress(progress_val)
+    
+                        # Move Full Breakdown under Person 2 column
+                        with st.expander("Person 2 Full Breakdown"):
+                            for e in sorted(
+                                f2_data["Emotions"],
+                                key=lambda x: x["Confidence"], reverse=True,
+                            ):
+                                st.progress(
+                                    min(int(e["Confidence"]), 100),
+                                    text=f"{e['Type'].capitalize()} ({e['Confidence']:.1f}%)"
+                                )
+    
+                # ═════════════════════════════════════════════════════════════════
+                # CASE B: ONE PERSON DETECTED
+                # ═════════════════════════════════════════════════════════════════
+                else:
+                    face_data = faces[0]
+                    top_emotion = max(face_data["Emotions"], key=lambda e: e["Confidence"])
+                    age_lo      = face_data["AgeRange"]["Low"]
+                    age_hi      = face_data["AgeRange"]["High"]
+    
+                    personality = aip.get_personality(face_data)
+                    caption = cg.get_caption(face_data)
+                    badges = aip.get_badges(face_data)
+                    vibes = ve.get_vibes(face_data)
+    
+                    # Emoji for top emotion
+                    emoji_map = {
+                        "HAPPY": "😄", "SAD": "😢", "ANGRY": "😠",
+                        "CONFUSED": "🤔", "DISGUSTED": "🤢", "SURPRISED": "😲",
+                        "CALM": "😌", "FEAR": "😰",
+                    }
+                    emotion_emoji = emoji_map.get(top_emotion["Type"], "🎭")
+    
+                    # 1. Main Face Card: Shows Age, Emotion, & Funny Caption
+                    st.markdown(
+                        f"<div class='ai-face-card' style='margin-bottom: 12px;'>"
+                        f"<div style='display: flex; justify-content: space-between; align-items: center; margin-bottom: 4px;'>"
+                        f"<p class='ai-face-label' style='margin: 0;'>{emotion_emoji} Detected Face</p>"
+                        f"<div style='display: flex; gap: 6px; align-items: center;'>"
+                        f"<span style='background: rgba(255,45,117,0.15); color: #ff6b6b; padding: 4px 10px; border-radius: 8px; font-size: 0.8rem; font-weight: 600; font-family: \"Space Grotesk\"; border: 1px solid rgba(255,45,117,0.2);'>{age_lo}–{age_hi} yrs</span>"
+                        f"<span style='background: rgba(108,59,255,0.15); color: #a855f7; padding: 4px 10px; border-radius: 8px; font-size: 0.8rem; font-weight: 600; font-family: \"Space Grotesk\"; border: 1px solid rgba(108,59,255,0.2);'>{emotion_emoji} {top_emotion['Type'].capitalize()}</span>"
+                        f"</div>"
+                        f"</div>"
+                        f"<p style='margin: 6px 0 0; font-size: 0.85rem; color: #a0a0b8; font-style: italic;'>\"{caption}\"</p>"
+                        f"</div>",
+                        unsafe_allow_html=True,
+                    )
+    
+                    # 2. Side-by-Side: AI Persona + Badges (left) and QR code (right)
+                    persona_col, qr_col = st.columns([3, 2], gap="medium")
+                    with persona_col:
+                        st.markdown(
+                            f"<div class='ai-insight-card' style='background: linear-gradient(135deg, rgba(255,45,117,0.05), rgba(108,59,255,0.05)); border: 1px solid rgba(255,45,117,0.15); border-radius: 12px; padding: 12px; text-align: center; margin-bottom: 8px;'>"
+                            f"<p style='font-family: \"Space Grotesk\", sans-serif; font-size: 0.7rem; text-transform: uppercase; letter-spacing: 0.1em; color: #ff6b6b; margin: 0 0 4px 0;'>AI Persona</p>"
+                            f"<h3 style='font-family: \"Space Grotesk\", sans-serif; font-size: 1.1rem; font-weight: 700; background: linear-gradient(135deg, #00d4ff, #7b2fff, #e044ab); -webkit-background-clip: text; -webkit-text-fill-color: transparent; margin: 0;'>{personality}</h3>"
+                            f"</div>",
+                            unsafe_allow_html=True,
+                        )
+                        badge_html = "".join([
+                            f"<span style='background: rgba(108,59,255,0.12); color: #a855f7; border: 1px solid rgba(108,59,255,0.2); padding: 4px 10px; border-radius: 20px; font-size: 0.72rem; font-weight: 600; font-family: \"DM Sans\";'>{badge}</span>"
+                            for badge in badges
+                        ])
+                        st.markdown(
+                            f"<div style='display: flex; flex-wrap: wrap; gap: 6px; justify-content: center; margin-bottom: 0px;'>{badge_html}</div>",
+                            unsafe_allow_html=True
+                        )
+                    with qr_col:
+                        url = st.session_state.photo_url
+                        if url and url != "#":
+                            qr_pil = qrcode.make(url)
+                            qr_buf = BytesIO()
+                            qr_pil.save(qr_buf, format="PNG")
+                            qr_b64 = base64.b64encode(qr_buf.getvalue()).decode("utf-8")
+                            st.markdown(
+                                f"<div style='display: flex; align-items: center; justify-content: center; height: 100%; min-height: 120px; box-sizing: border-box;'>"
+                                f"<img src='data:image/png;base64,{qr_b64}' style='width: 115px; height: 115px; border-radius: 12px; border: 1.5px solid rgba(255,255,255,0.08);' />"
+                                f"</div>",
+                                unsafe_allow_html=True
+                            )
+                        else:
+                            st.info("Photo URL not available.")
+    
+                    # 4. Gaming-style vibe statistics
+                    st.markdown("<p style='font-family: \"Space Grotesk\", sans-serif; font-size: 0.68rem; text-transform: uppercase; letter-spacing: 0.1em; color: #666; margin: 0 0 6px 0; text-align: center;'>Vibe Statistics</p>", unsafe_allow_html=True)
+                    for label, val in vibes.items():
+                        st.markdown(
+                            f"<div style='display: flex; justify-content: space-between; font-size: 0.76rem; margin-bottom: 1px;'>"
+                            f"<span style='color: #888; font-weight: 500;'>{label}</span>"
+                            f"<span style='color: #00d4ff; font-weight: 600; font-family: Space Grotesk;'>{val}</span>"
+                            f"</div>",
+                            unsafe_allow_html=True
+                        )
+                        val_str = str(val)
+                        if "MAX" in val_str:
+                            progress_val = 100
+                        elif "CRITICAL" in val_str:
+                            progress_val = 15
+                        else:
+                            try:
+                                progress_val = int(val_str.replace("%", ""))
+                            except ValueError:
+                                progress_val = 50
+                        st.progress(progress_val)
+    
+                    # 5. Full breakdown (Clean white labels)
+                    with st.expander("Person 1 Full Breakdown"):
+                        for e in sorted(
+                            face_data["Emotions"],
+                            key=lambda x: x["Confidence"], reverse=True,
+                        ):
+                            st.progress(
+                                min(int(e["Confidence"]), 100),
+                                text=f"{e['Type'].capitalize()}  "
+                                     f"({e['Confidence']:.1f}%)",
+                            )
 
-                    # Select button
-                    btn_class = "frame-active" if is_active else "frame-inactive"
-                    btn_label = f"✓ {entry['label']}" if is_active else entry["label"]
-                    st.markdown(f"<div class='{btn_class}'>", unsafe_allow_html=True)
-                    if st.button(btn_label, key=f"frame_btn_{entry['id']}",
-                                 use_container_width=True):
-                        st.session_state.frame_id = entry["id"]
-                        st.rerun()
-                    st.markdown("</div>", unsafe_allow_html=True)
-
-
-# ─────────────────────────────────────────────────────────────────────────────
-# ══════════════════════  STATE 2 — AFTER CAPTURE  ════════════════════════════
-# ─────────────────────────────────────────────────────────────────────────────
-
-else:
-    left, right = st.columns([2, 3], gap="large")
-
-    # ── LEFT: final framed photo ───────────────────────────────────────────
-    with left:
+def render_photostrip_page():
+    # Title row: back button + title inline
+    hdr_l, hdr_r = st.columns([1, 5], gap="small")
+    with hdr_l:
+        st.markdown('<div class="reset-btn" style="padding-top:6px;">', unsafe_allow_html=True)
+        if st.button("← Home", key="ps_back"):
+            st.session_state.app_page = "home"
+            st.rerun()
+        st.markdown('</div>', unsafe_allow_html=True)
+    with hdr_r:
         st.markdown(
-            "<h1 style='text-align:left;"
+            "<h1 style='"
             "font-family:Space Grotesk,sans-serif;"
-            "font-size:2.4rem;font-weight:800;margin-bottom:0;"
+            "font-size:2.2rem;font-weight:800;margin:0;"
             "letter-spacing:-0.04em;"
             "background:linear-gradient(135deg,#ff2d75 0%,#ff6b6b 40%,#6c3bff 100%);"
             "-webkit-background-clip:text;-webkit-text-fill-color:transparent;"
             "filter:drop-shadow(0 0 25px rgba(255,45,117,0.2));'>"
-            "AI Photo Booth</h1>",
+            "Photostrip Booth</h1>"
+            "<p style='color:#555;margin-top:4px;font-size:.9rem;font-family:DM Sans,sans-serif;'>"
+            "Crafted by <span style='background:linear-gradient(135deg,#ff2d75,#6c3bff);-webkit-background-clip:text;-webkit-text-fill-color:transparent;font-weight:600;'>Ankitha Jade</span>"
+            " and <span style='background:linear-gradient(135deg,#ff2d75,#6c3bff);-webkit-background-clip:text;-webkit-text-fill-color:transparent;font-weight:600;'>Sadhana S</span></p>",
             unsafe_allow_html=True,
         )
-        st.markdown(
-            "<p class='tagline' style='text-align:left; margin-left:0; padding-left:0; margin-bottom: 0px;'>"
-            "Crafted by <span>Ankitha Jade</span> and <span>Sadhana S</span>"
-            "</p>",
-            unsafe_allow_html=True,
-        )
-        st.divider()
-
-        st.markdown("<p class='sec-label'>Result</p>", unsafe_allow_html=True)
-        st.markdown("<p class='sec-title'>🎉 Looking Great!</p>", unsafe_allow_html=True)
-        st.image(
-            st.session_state.final_image,
-            use_container_width=True,
-        )
-
-        # Reset button
-        st.markdown('<div class="reset-btn">', unsafe_allow_html=True)
-        if st.button("🔄  Take Another Photo", key="reset", use_container_width=True):
-            st.session_state.camera_run_id += 1
-            for k in ["captured", "final_image", "image_bytes",
-                      "file_name", "photo_url", "rek_faces"]:
-                st.session_state[k] = (
-                    False if k == "captured" else
-                    [] if k == "rek_faces" else None
-                )
-            st.rerun()
-        st.markdown("</div>", unsafe_allow_html=True)
-
-    # ── RIGHT: AI analysis + QR + download ────────────────────────────────
-    with right:
-
-        # ── AI Analysis ────────────────────────────────────────────────
-        st.markdown("<p class='sec-label'>AI Insights</p>", unsafe_allow_html=True)
-        st.markdown("<p class='sec-title'>🤖 Here's What AI Sees</p>", unsafe_allow_html=True)
-
-        faces = st.session_state.rek_faces
-
-        if not faces:
-            st.info("🤷 No faces detected — try again with better lighting!")
-        else:
-            # ═════════════════════════════════════════════════════════════════
-            # CASE A: TWO OR MORE PEOPLE DETECTED (SIDE-BY-SIDE COLUMNS)
-            # ═════════════════════════════════════════════════════════════════
-            if len(faces) >= 2:
-                # 1. Team Vibe & QR Code Side-by-Side
-                st.markdown("<p class='sec-label'>Team Chemistry & Share</p>", unsafe_allow_html=True)
-                vibe_col, qr_col = st.columns([3, 2], gap="medium")
-                with vibe_col:
-                    group_vibe = ve.get_group_vibe(faces)
-                    st.markdown(
-                        f"<div class='ai-face-card' style='background: linear-gradient(135deg, rgba(108,59,255,0.08), rgba(255,45,117,0.08)); border-color: rgba(108,59,255,0.25); text-align: center; height: 130px; display: flex; flex-direction: column; justify-content: center; align-items: center; margin-bottom: 0px; padding: 15px; box-sizing: border-box;'>"
-                        f"<p class='sec-label' style='color: #a855f7; margin-bottom: 4px; font-size: 0.65rem; text-transform: uppercase;'>Team Vibe</p>"
-                        f"<h4 style='margin: 0; font-family: \"Space Grotesk\", sans-serif; font-weight: 700; color: #f0f0f5; font-size: 1.1rem;'>✨ {group_vibe}</h4>"
-                        f"</div>",
-                        unsafe_allow_html=True
-                    )
-                with qr_col:
-                    url = st.session_state.photo_url
-                    if url and url != "#":
-                        qr_pil = qrcode.make(url)
-                        qr_buf = BytesIO()
-                        qr_pil.save(qr_buf, format="PNG")
-                        qr_b64 = base64.b64encode(qr_buf.getvalue()).decode("utf-8")
-                        st.markdown(
-                            f"<div style='display: flex; align-items: center; justify-content: center; height: 130px; box-sizing: border-box;'>"
-                            f"<img src='data:image/png;base64,{qr_b64}' style='width: 130px; height: 130px; border-radius: 12px; border: 1.5px solid rgba(255,255,255,0.08);' />"
-                            f"</div>",
-                            unsafe_allow_html=True
+    st.divider()
+    
+    # ═════════════════════════════════════════════════════════════════════════════
+    #  STATE 1 — BEFORE CAPTURE
+    # ═════════════════════════════════════════════════════════════════════════════
+    
+    if st.session_state.ps_mode == "capture":
+        left, right = st.columns([3, 2], gap="large")
+    
+        # ── LEFT: Live Camera Feed ─────────────────────────────────────────────
+        with left:
+            st.markdown("#### 📷 Live Preview")
+            ctx = webrtc_streamer(
+                key=f"booth_{st.session_state.ps_camera_run_id}",
+                desired_playing_state=True,
+                mode=WebRtcMode.SENDRECV,
+                video_processor_factory=StripVideoProcessor,
+                media_stream_constraints={
+                    "video": {
+                        "width": {"ideal": 1280},
+                        "height": {"ideal": 720},
+                        "frameRate": {"ideal": 30},
+                    },
+                    "audio": False,
+                },
+                async_processing=True,
+                video_html_attrs=VideoHTMLAttributes(
+                    autoPlay=True, controls=False,
+                    style={
+                        "maxHeight": "420px", "width": "auto", "maxWidth": "100%",
+                        "borderRadius": "12px", "background": "#000",
+                        "display": "block", "margin": "0 auto",
+                    },
+                    muted=True, playsInline=True,
+                ),
+            )
+            
+            if ctx.video_processor:
+                ctx.video_processor.filter_mode = st.session_state.ps_selected_filter
+    
+            st.divider()
+    
+            capture_ph = st.empty()
+            status_ph  = st.empty()
+    
+            start_clicked = capture_ph.button(
+                "Start Photostrip",
+                key="start_capture", type="primary",
+                use_container_width=True,
+                disabled=st.session_state.ps_is_capturing,
+            )
+    
+            if start_clicked:
+                if not ctx.video_processor:
+                    st.warning("Start the camera first!")
+                elif ctx.video_processor.frame_bgr is None:
+                    st.warning("Waiting for camera feed…")
+                else:
+                    st.session_state.ps_is_capturing = True
+                    st.session_state.ps_captured_photos = []
+                    st.rerun()
+    
+            # ── Capture sequence (blocking in main thread) ─────────────────────
+            if st.session_state.ps_is_capturing:
+                capture_ph.empty()
+    
+                for photo_num in range(1, 5):
+                    for countdown in range(3, 0, -1):
+                        status_ph.markdown(
+                            f"<div class='countdown-text'>Photo {photo_num}/4<br>{countdown}…</div>",
+                            unsafe_allow_html=True,
                         )
-                    else:
-                        st.info("Photo URL not available.")
-
-                st.divider()
-
-                # 2. Extract Data for both people independently
-                f1_data = faces[0]
-                f2_data = faces[1]
-
-                p1_emotion = max(f1_data["Emotions"], key=lambda e: e["Confidence"])
-                p1_age_lo  = f1_data["AgeRange"]["Low"]
-                p1_age_hi  = f1_data["AgeRange"]["High"]
-                p1_personality = aip.get_personality(f1_data)
-                p1_caption = cg.get_caption(f1_data)
-                p1_badges = aip.get_badges(f1_data)
-                p1_vibes = ve.get_vibes(f1_data)
-
-                p2_emotion = max(f2_data["Emotions"], key=lambda e: e["Confidence"])
-                p2_age_lo  = f2_data["AgeRange"]["Low"]
-                p2_age_hi  = f2_data["AgeRange"]["High"]
-                p2_personality = aip.get_personality(f2_data)
-                p2_caption = cg.get_caption(f2_data)
-                p2_badges = aip.get_badges(f2_data)
-                p2_vibes = ve.get_vibes(f2_data)
-
-                # Emoji helper mapping
-                emoji_map = {
-                    "HAPPY": "😄", "SAD": "😢", "ANGRY": "😠",
-                    "CONFUSED": "🤔", "DISGUSTED": "🤢", "SURPRISED": "😲",
-                    "CALM": "😌", "FEAR": "😰",
-                }
-                p1_emoji = emoji_map.get(p1_emotion["Type"], "🎭")
-                p2_emoji = emoji_map.get(p2_emotion["Type"], "🎭")
-
-                # 3. Two columns side-by-side
-                p1_col, p2_col = st.columns(2, gap="medium")
-
-                with p1_col:
-                    st.markdown(
-                        f"<div class='ai-face-card' style='margin-bottom: 12px;'>"
-                        f"<div style='display: flex; justify-content: space-between; align-items: center; margin-bottom: 4px;'>"
-                        f"<p class='ai-face-label' style='margin: 0;'>{p1_emoji} Person 1</p>"
-                        f"<div style='display: flex; gap: 4px; align-items: center; flex-wrap: wrap;'>"
-                        f"<span style='background: rgba(255,45,117,0.15); color: #ff6b6b; padding: 2px 6px; border-radius: 6px; font-size: 0.72rem; font-weight: 600; font-family: \"Space Grotesk\"; border: 1px solid rgba(255,45,117,0.2);'>{p1_age_lo}–{p1_age_hi} yrs</span>"
-                        f"<span style='background: rgba(108,59,255,0.15); color: #a855f7; padding: 2px 6px; border-radius: 6px; font-size: 0.72rem; font-weight: 600; font-family: \"Space Grotesk\"; border: 1px solid rgba(108,59,255,0.2);'>{p1_emoji} {p1_emotion['Type'].capitalize()}</span>"
-                        f"</div>"
-                        f"</div>"
-                        f"<p style='margin: 6px 0 0; font-size: 0.8rem; color: #a0a0b8; font-style: italic;'>\"{p1_caption}\"</p>"
-                        f"</div>",
+                        time.sleep(1)
+    
+                    # Flash effect
+                    st.markdown("<div class='flash-active'></div>", unsafe_allow_html=True)
+                    status_ph.markdown(
+                        "<div class='countdown-text'><span style='-webkit-text-fill-color: initial;'>📸</span>!</div>",
                         unsafe_allow_html=True,
                     )
-
-                    st.markdown(
-                        f"<div class='ai-insight-card' style='background: linear-gradient(135deg, rgba(255,45,117,0.05), rgba(108,59,255,0.05)); border: 1px solid rgba(255,45,117,0.15); border-radius: 12px; padding: 10px; margin-bottom: 10px; text-align: center;'>"
-                        f"<p style='font-family: \"Space Grotesk\", sans-serif; font-size: 0.65rem; text-transform: uppercase; letter-spacing: 0.1em; color: #ff6b6b; margin: 0 0 2px 0;'>AI Persona</p>"
-                        f"<h3 style='font-family: \"Space Grotesk\", sans-serif; font-size: 0.95rem; font-weight: 700; background: linear-gradient(135deg, #00d4ff, #7b2fff, #e044ab); -webkit-background-clip: text; -webkit-text-fill-color: transparent; margin: 0;'>{p1_personality}</h3>"
-                        f"</div>",
-                        unsafe_allow_html=True,
-                    )
-
-                    p1_badge_html = "".join([
-                        f"<span style='background: rgba(108,59,255,0.12); color: #a855f7; border: 1px solid rgba(108,59,255,0.2); padding: 3px 8px; border-radius: 20px; font-size: 0.65rem; font-weight: 600; font-family: \"DM Sans\";'>{badge}</span>"
-                        for badge in p1_badges
-                    ])
-                    st.markdown(
-                        f"<div style='display: flex; flex-wrap: wrap; gap: 4px; justify-content: center; margin-bottom: 10px;'>{p1_badge_html}</div>",
-                        unsafe_allow_html=True
-                    )
-
-                    for label, val in p1_vibes.items():
-                        st.markdown(
-                            f"<div style='display: flex; justify-content: space-between; font-size: 0.72rem; margin-bottom: 1px;'>"
-                            f"<span style='color: #888; font-weight: 500;'>{label}</span>"
-                            f"<span style='color: #00d4ff; font-weight: 600; font-family: Space Grotesk;'>{val}</span>"
-                            f"</div>",
-                            unsafe_allow_html=True
-                        )
-                        val_str = str(val)
-                        if "MAX" in val_str:
-                            progress_val = 100
-                        elif "CRITICAL" in val_str:
-                            progress_val = 15
-                        else:
-                            try:
-                                progress_val = int(val_str.replace("%", ""))
-                            except ValueError:
-                                progress_val = 50
-                        st.progress(progress_val)
-
-                    # Move Full Breakdown under Person 1 column
-                    with st.expander("Person 1 Full Breakdown"):
-                        for e in sorted(
-                            f1_data["Emotions"],
-                            key=lambda x: x["Confidence"], reverse=True,
-                        ):
-                            st.progress(
-                                min(int(e["Confidence"]), 100),
-                                text=f"{e['Type'].capitalize()} ({e['Confidence']:.1f}%)"
-                            )
-
-                with p2_col:
-                    st.markdown(
-                        f"<div class='ai-face-card' style='margin-bottom: 12px;'>"
-                        f"<div style='display: flex; justify-content: space-between; align-items: center; margin-bottom: 4px;'>"
-                        f"<p class='ai-face-label' style='margin: 0;'>{p2_emoji} Person 2</p>"
-                        f"<div style='display: flex; gap: 4px; align-items: center; flex-wrap: wrap;'>"
-                        f"<span style='background: rgba(255,45,117,0.15); color: #ff6b6b; padding: 2px 6px; border-radius: 6px; font-size: 0.72rem; font-weight: 600; font-family: \"Space Grotesk\"; border: 1px solid rgba(255,45,117,0.2);'>{p2_age_lo}–{p2_age_hi} yrs</span>"
-                        f"<span style='background: rgba(108,59,255,0.15); color: #a855f7; padding: 2px 6px; border-radius: 6px; font-size: 0.72rem; font-weight: 600; font-family: \"Space Grotesk\"; border: 1px solid rgba(108,59,255,0.2);'>{p2_emoji} {p2_emotion['Type'].capitalize()}</span>"
-                        f"</div>"
-                        f"</div>"
-                        f"<p style='margin: 6px 0 0; font-size: 0.8rem; color: #a0a0b8; font-style: italic;'>\"{p2_caption}\"</p>"
-                        f"</div>",
-                        unsafe_allow_html=True,
-                    )
-
-                    st.markdown(
-                        f"<div class='ai-insight-card' style='background: linear-gradient(135deg, rgba(255,45,117,0.05), rgba(108,59,255,0.05)); border: 1px solid rgba(255,45,117,0.15); border-radius: 12px; padding: 10px; margin-bottom: 10px; text-align: center;'>"
-                        f"<p style='font-family: \"Space Grotesk\", sans-serif; font-size: 0.65rem; text-transform: uppercase; letter-spacing: 0.1em; color: #ff6b6b; margin: 0 0 2px 0;'>AI Persona</p>"
-                        f"<h3 style='font-family: \"Space Grotesk\", sans-serif; font-size: 0.95rem; font-weight: 700; background: linear-gradient(135deg, #00d4ff, #7b2fff, #e044ab); -webkit-background-clip: text; -webkit-text-fill-color: transparent; margin: 0;'>{p2_personality}</h3>"
-                        f"</div>",
-                        unsafe_allow_html=True,
-                    )
-
-                    p2_badge_html = "".join([
-                        f"<span style='background: rgba(108,59,255,0.12); color: #a855f7; border: 1px solid rgba(108,59,255,0.2); padding: 3px 8px; border-radius: 20px; font-size: 0.65rem; font-weight: 600; font-family: \"DM Sans\";'>{badge}</span>"
-                        for badge in p2_badges
-                    ])
-                    st.markdown(
-                        f"<div style='display: flex; flex-wrap: wrap; gap: 4px; justify-content: center; margin-bottom: 10px;'>{p2_badge_html}</div>",
-                        unsafe_allow_html=True
-                    )
-
-                    for label, val in p2_vibes.items():
-                        st.markdown(
-                            f"<div style='display: flex; justify-content: space-between; font-size: 0.72rem; margin-bottom: 1px;'>"
-                            f"<span style='color: #888; font-weight: 500;'>{label}</span>"
-                            f"<span style='color: #00d4ff; font-weight: 600; font-family: Space Grotesk;'>{val}</span>"
-                            f"</div>",
-                            unsafe_allow_html=True
-                        )
-                        val_str = str(val)
-                        if "MAX" in val_str:
-                            progress_val = 100
-                        elif "CRITICAL" in val_str:
-                            progress_val = 15
-                        else:
-                            try:
-                                progress_val = int(val_str.replace("%", ""))
-                            except ValueError:
-                                progress_val = 50
-                        st.progress(progress_val)
-
-                    # Move Full Breakdown under Person 2 column
-                    with st.expander("Person 2 Full Breakdown"):
-                        for e in sorted(
-                            f2_data["Emotions"],
-                            key=lambda x: x["Confidence"], reverse=True,
-                        ):
-                            st.progress(
-                                min(int(e["Confidence"]), 100),
-                                text=f"{e['Type'].capitalize()} ({e['Confidence']:.1f}%)"
-                            )
-
-            # ═════════════════════════════════════════════════════════════════
-            # CASE B: ONE PERSON DETECTED
-            # ═════════════════════════════════════════════════════════════════
-            else:
-                face_data = faces[0]
-                top_emotion = max(face_data["Emotions"], key=lambda e: e["Confidence"])
-                age_lo      = face_data["AgeRange"]["Low"]
-                age_hi      = face_data["AgeRange"]["High"]
-
-                personality = aip.get_personality(face_data)
-                caption = cg.get_caption(face_data)
-                badges = aip.get_badges(face_data)
-                vibes = ve.get_vibes(face_data)
-
-                # Emoji for top emotion
-                emoji_map = {
-                    "HAPPY": "😄", "SAD": "😢", "ANGRY": "😠",
-                    "CONFUSED": "🤔", "DISGUSTED": "🤢", "SURPRISED": "😲",
-                    "CALM": "😌", "FEAR": "😰",
-                }
-                emotion_emoji = emoji_map.get(top_emotion["Type"], "🎭")
-
-                # 1. Main Face Card: Shows Age, Emotion, & Funny Caption
-                st.markdown(
-                    f"<div class='ai-face-card' style='margin-bottom: 12px;'>"
-                    f"<div style='display: flex; justify-content: space-between; align-items: center; margin-bottom: 4px;'>"
-                    f"<p class='ai-face-label' style='margin: 0;'>{emotion_emoji} Detected Face</p>"
-                    f"<div style='display: flex; gap: 6px; align-items: center;'>"
-                    f"<span style='background: rgba(255,45,117,0.15); color: #ff6b6b; padding: 4px 10px; border-radius: 8px; font-size: 0.8rem; font-weight: 600; font-family: \"Space Grotesk\"; border: 1px solid rgba(255,45,117,0.2);'>{age_lo}–{age_hi} yrs</span>"
-                    f"<span style='background: rgba(108,59,255,0.15); color: #a855f7; padding: 4px 10px; border-radius: 8px; font-size: 0.8rem; font-weight: 600; font-family: \"Space Grotesk\"; border: 1px solid rgba(108,59,255,0.2);'>{emotion_emoji} {top_emotion['Type'].capitalize()}</span>"
-                    f"</div>"
-                    f"</div>"
-                    f"<p style='margin: 6px 0 0; font-size: 0.85rem; color: #a0a0b8; font-style: italic;'>\"{caption}\"</p>"
-                    f"</div>",
+    
+                    # Grab frame
+                    with ctx.video_processor._lock:
+                        frame_bgr = ctx.video_processor.frame_bgr.copy()
+                    frame_pil = Image.fromarray(cv2.cvtColor(frame_bgr, cv2.COLOR_BGR2RGB))
+                    st.session_state.ps_captured_photos.append(frame_pil)
+                    time.sleep(0.5)
+    
+                status_ph.markdown(
+                    "<div class='countdown-text' style='color:#38ef7d;'>Processing…</div>",
                     unsafe_allow_html=True,
                 )
+    
+                # Composite the photostrip
+                final_strip = create_photostrip(
+                    st.session_state.ps_captured_photos,
+                    st.session_state.ps_selected_strip,
+                )
+    
+                # Export to PNG bytes
+                buf = BytesIO()
+                final_strip.save(buf, format="PNG")
+                img_bytes = buf.getvalue()
+    
+                # Upload to S3
+                photo_url, upload_err = upload_to_s3(img_bytes)
+                if upload_err:
+                    st.error(f"S3 upload error: {upload_err}")
+    
+                # Commit results to session state
+                st.session_state.ps_final_strip  = final_strip
+                st.session_state.ps_image_bytes  = img_bytes
+                st.session_state.ps_file_name    = f"photostrip_{int(time.time())}.png"
+                st.session_state.ps_photo_url    = photo_url
+                st.session_state.ps_upload_error = upload_err
+                st.session_state.ps_mode         = "result"
+                st.session_state.ps_is_capturing = False
+                st.rerun()
+    
+        # ── RIGHT: Strip Gallery + Capture Controls ────────────────────────────
+        with right:
+            st.markdown("#### 🎞️ Choose Your Strip")
+    
+            # Thumbnail gallery — 3 columns
+            gallery_cols = st.columns(3)
+            for idx, (strip_id, info) in enumerate(STRIP_TEMPLATES.items()):
+                with gallery_cols[idx]:
+                    is_active = (st.session_state.ps_selected_strip == strip_id)
+                    css_class = "selected" if is_active else ""
+    
+                    # Render thumbnail inside a styled card
+                    thumb = _load_gallery_thumb(info["path"])
+                    
+                    # Convert PIL image to base64 for inline HTML rendering
+                    buf = BytesIO()
+                    thumb.save(buf, format="PNG")
+                    img_b64 = base64.b64encode(buf.getvalue()).decode("utf-8")
+                    
+                    html_card = f"""
+                    <div class="strip-card {css_class}">
+                        <img src="data:image/png;base64,{img_b64}" style="width: 100%; border-radius: 6px; display: block;">
+                    </div>
+                    """
+                    st.markdown(html_card, unsafe_allow_html=True)
+    
+                    # Selection button
+                    label = f"✅ {info['name']}" if is_active else info["name"]
+                    if st.button(label, key=f"sel_{strip_id}", use_container_width=True):
+                        st.session_state.ps_selected_strip = strip_id
+                        st.rerun()
+    
+            st.divider()
+            st.markdown("#### 🎨 Choose Filter")
+            filter_cols = st.columns(3)
+            
+            filters = [
+                ("color", "🎨 Color"),
+                ("bw", "🖤 B&W"),
+                ("vintage", "📼 Vintage")
+            ]
+            
+            for idx, (f_id, f_name) in enumerate(filters):
+                with filter_cols[idx]:
+                    is_sel = (st.session_state.ps_selected_filter == f_id)
+                    if st.button(f_name, key=f"btn_flt_{f_id}", type="primary" if is_sel else "secondary", use_container_width=True):
+                        st.session_state.ps_selected_filter = f_id
+                        st.rerun()
+    
+            st.divider()
+            st.markdown("#### 🚀 Ready to Shoot?")
+            st.info("This will take **4 photos** in a row with the selected strip template.")
+    
+    
+    
+    # ═════════════════════════════════════════════════════════════════════════════
+    #  STATE 2 — AFTER CAPTURE (Result Screen)
+    # ═════════════════════════════════════════════════════════════════════════════
+    
+    elif st.session_state.ps_mode == "result":
+        left, right = st.columns([2, 3], gap="large")
+    
+        # ── LEFT: Final Photostrip Preview ─────────────────────────────────────
+        with left:
+            st.markdown("#### 🎞️ Your Photostrip")
+            # Display at 400px width — balanced size for laptop without overflow
+            st.image(st.session_state.ps_final_strip, width=400)
+    
+        # ── RIGHT: QR Code + Retake ────────────────────────────────────────────
+        with right:
+            url = st.session_state.ps_photo_url
+            if url and url != "#":
+                st.markdown("#### 📱 Scan to Share & Download")
+                qr_img = qrcode.make(url)
+                qr_buf = BytesIO()
+                qr_img.save(qr_buf, format="PNG")
+                
+                qr_b64 = base64.b64encode(qr_buf.getvalue()).decode("utf-8")
+                st.markdown(
+                    f"<div style='display: flex; align-items: center; justify-content: center; height: 300px; box-sizing: border-box;'>"
+                    f"<img src='data:image/png;base64,{qr_b64}' style='width: 280px; height: 280px; border-radius: 12px; border: 2px solid rgba(255,45,117,0.3); box-shadow: 0 0 20px rgba(255,45,117,0.15);' />"
+                    f"</div>",
+                    unsafe_allow_html=True
+                )
+    
+                st.caption("Scan with your phone to share or download your photostrip!")
+            else:
+                st.info("Photo URL not available (S3 upload may have failed).")
+                if st.session_state.ps_upload_error:
+                    st.error(f"Error: {st.session_state.ps_upload_error}")
+    
+            st.divider()
+    
+            # Retake button — positioned below QR in the right panel
+            st.markdown('<div class="reset-btn">', unsafe_allow_html=True)
+            if st.button("🔄  Take Another Photo", key="reset", use_container_width=True):
+                _reset_ps_session()
+                st.rerun()
+            st.markdown("</div>", unsafe_allow_html=True)
 
-                # 2. Side-by-Side: AI Persona + Badges (left) and QR code (right)
-                persona_col, qr_col = st.columns([3, 2], gap="medium")
-                with persona_col:
-                    st.markdown(
-                        f"<div class='ai-insight-card' style='background: linear-gradient(135deg, rgba(255,45,117,0.05), rgba(108,59,255,0.05)); border: 1px solid rgba(255,45,117,0.15); border-radius: 12px; padding: 12px; text-align: center; margin-bottom: 8px;'>"
-                        f"<p style='font-family: \"Space Grotesk\", sans-serif; font-size: 0.7rem; text-transform: uppercase; letter-spacing: 0.1em; color: #ff6b6b; margin: 0 0 4px 0;'>AI Persona</p>"
-                        f"<h3 style='font-family: \"Space Grotesk\", sans-serif; font-size: 1.1rem; font-weight: 700; background: linear-gradient(135deg, #00d4ff, #7b2fff, #e044ab); -webkit-background-clip: text; -webkit-text-fill-color: transparent; margin: 0;'>{personality}</h3>"
-                        f"</div>",
-                        unsafe_allow_html=True,
-                    )
-                    badge_html = "".join([
-                        f"<span style='background: rgba(108,59,255,0.12); color: #a855f7; border: 1px solid rgba(108,59,255,0.2); padding: 4px 10px; border-radius: 20px; font-size: 0.72rem; font-weight: 600; font-family: \"DM Sans\";'>{badge}</span>"
-                        for badge in badges
-                    ])
-                    st.markdown(
-                        f"<div style='display: flex; flex-wrap: wrap; gap: 6px; justify-content: center; margin-bottom: 0px;'>{badge_html}</div>",
-                        unsafe_allow_html=True
-                    )
-                with qr_col:
-                    url = st.session_state.photo_url
-                    if url and url != "#":
-                        qr_pil = qrcode.make(url)
-                        qr_buf = BytesIO()
-                        qr_pil.save(qr_buf, format="PNG")
-                        qr_b64 = base64.b64encode(qr_buf.getvalue()).decode("utf-8")
-                        st.markdown(
-                            f"<div style='display: flex; align-items: center; justify-content: center; height: 100%; min-height: 120px; box-sizing: border-box;'>"
-                            f"<img src='data:image/png;base64,{qr_b64}' style='width: 115px; height: 115px; border-radius: 12px; border: 1.5px solid rgba(255,255,255,0.08);' />"
-                            f"</div>",
-                            unsafe_allow_html=True
-                        )
-                    else:
-                        st.info("Photo URL not available.")
+def main():
+    _init_state()
+    
+    if st.session_state.app_page == "home":
+        render_home_page()
+    elif st.session_state.app_page == "photobooth":
+        render_photobooth_page()
+    elif st.session_state.app_page == "photostrip":
+        render_photostrip_page()
 
-                # 4. Gaming-style vibe statistics
-                st.markdown("<p style='font-family: \"Space Grotesk\", sans-serif; font-size: 0.68rem; text-transform: uppercase; letter-spacing: 0.1em; color: #666; margin: 0 0 6px 0; text-align: center;'>Vibe Statistics</p>", unsafe_allow_html=True)
-                for label, val in vibes.items():
-                    st.markdown(
-                        f"<div style='display: flex; justify-content: space-between; font-size: 0.76rem; margin-bottom: 1px;'>"
-                        f"<span style='color: #888; font-weight: 500;'>{label}</span>"
-                        f"<span style='color: #00d4ff; font-weight: 600; font-family: Space Grotesk;'>{val}</span>"
-                        f"</div>",
-                        unsafe_allow_html=True
-                    )
-                    val_str = str(val)
-                    if "MAX" in val_str:
-                        progress_val = 100
-                    elif "CRITICAL" in val_str:
-                        progress_val = 15
-                    else:
-                        try:
-                            progress_val = int(val_str.replace("%", ""))
-                        except ValueError:
-                            progress_val = 50
-                    st.progress(progress_val)
-
-                # 5. Full breakdown (Clean white labels)
-                with st.expander("Person 1 Full Breakdown"):
-                    for e in sorted(
-                        face_data["Emotions"],
-                        key=lambda x: x["Confidence"], reverse=True,
-                    ):
-                        st.progress(
-                            min(int(e["Confidence"]), 100),
-                            text=f"{e['Type'].capitalize()}  "
-                                 f"({e['Confidence']:.1f}%)",
-                        )
+if __name__ == "__main__":
+    main()
