@@ -2,7 +2,7 @@ streamlit
 streamlit-webrtc
 av
 boto3
-opencv-python
+opencv-python-headless
 numpy
 qrcode
 Pillow
