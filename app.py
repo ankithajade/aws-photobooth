@@ -276,7 +276,12 @@ def build_preview_overlay(res: dict) -> tuple:
         ov_rgba = np.array(res["overlay"].resize((cw, ch), Image.LANCZOS))
         # Swap R↔B channels so it matches the BGR canvas in recv()
         # Result layout: [B, G, R, A]  (BGRA)
-        ov = ov_rgba[:, :, [2, 1, 0, 3]].copy()
+        ov_bgra = ov_rgba[:, :, [2, 1, 0, 3]].copy()
+        
+        # Pre-compute float values to avoid doing casts & divisions 30 times/sec in the loop
+        alpha_f = ov_bgra[:, :, 3:4].astype(np.float32) / 255.0
+        frame_bgr = ov_bgra[:, :, :3].astype(np.float32)
+        ov = (frame_bgr, alpha_f)
     else:
         ov = None
 
@@ -340,12 +345,11 @@ class VideoProcessor:
         canvas[wy:y2, wx:x2] = thumb[:y2 - wy, :x2 - wx]
 
         # ── Alpha-blend the frame overlay on top ──────────────────────────
-        # overlay is BGRA (pre-converted in build_preview_overlay),
-        # canvas is BGR  → channels match, blend is colour-accurate.
+        # overlay contains pre-computed float values (frame_bgr, alpha_f),
+        # avoiding slow per-frame image allocations and CPU divisions.
         if overlay is not None:
-            alpha_f    = overlay[:, :, 3:4].astype(np.float32) / 255.0
-            frame_bgr  = overlay[:, :, :3].astype(np.float32)   # already BGR
-            canvas = (frame_bgr * alpha_f + canvas * (1.0 - alpha_f)).astype(np.uint8)
+            frame_bgr, alpha_f = overlay
+            canvas = (frame_bgr * alpha_f + canvas.astype(np.float32) * (1.0 - alpha_f)).astype(np.uint8)
 
         return av.VideoFrame.from_ndarray(canvas, format="bgr24")
 
@@ -422,7 +426,14 @@ if not st.session_state.captured:
             desired_playing_state=True,
             mode=WebRtcMode.SENDRECV,
             video_processor_factory=VideoProcessor,
-            media_stream_constraints={"video": True, "audio": False},
+            media_stream_constraints={
+                "video": {
+                    "width": {"ideal": 1920},
+                    "height": {"ideal": 1080},
+                    "frameRate": {"ideal": 30}
+                },
+                "audio": False
+            },
             async_processing=True,
             # video_html_attrs must be a VideoHTMLAttributes object.
             # In React, the 'style' attribute MUST be a dictionary (camelCased keys).
