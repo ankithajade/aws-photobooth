@@ -398,7 +398,7 @@ st.markdown(
 )
 st.markdown(
     "<p style='text-align:center;color:#555;margin-top:4px;font-size:.9rem;'>"
-    "Powered by AWS Rekognition &nbsp;·&nbsp; S3 &nbsp;·&nbsp; QR</p>",
+    "Crafted by Ankitha Jade and Sadhana S</p>",
     unsafe_allow_html=True,
 )
 st.divider()
