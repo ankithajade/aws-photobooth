@@ -50,6 +50,23 @@ html, body, [class*="css"] { font-family: 'Inter', sans-serif; }
 h1,h2,h3,h4 { color: #f0f0f5; }
 p, li { color: #b0b0c0; }
 
+@keyframes flash-animation {
+    0% { opacity: 0; }
+    10% { opacity: 1; }
+    100% { opacity: 0; }
+}
+.flash-active {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100vw;
+    height: 100vh;
+    background-color: rgba(255, 255, 255, 0.95);
+    z-index: 99999;
+    pointer-events: none;
+    animation: flash-animation 0.4s ease-out forwards;
+}
+
 /* ── video element ── */
 video {
     border-radius: 12px;
@@ -241,6 +258,167 @@ def composite(photo: Image.Image, res: dict) -> Image.Image:
     if res["overlay"] is not None:
         return Image.alpha_composite(bg, res["overlay"])
     return bg
+
+
+def generate_share_page(image_url: str) -> str:
+    """Generate a mobile-friendly HTML page for downloading and sharing the image."""
+    return f"""<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Photo Booth Capture</title>
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;700;900&display=swap');
+    body {{
+      margin: 0;
+      padding: 0;
+      background: #08080f;
+      color: #f0f0f5;
+      font-family: 'Inter', sans-serif;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      min-height: 100vh;
+      box-sizing: border-box;
+      padding: 20px;
+    }}
+    .container {{
+      max-width: 480px;
+      width: 100%;
+      text-align: center;
+      background: rgba(18, 18, 30, 0.6);
+      backdrop-filter: blur(10px);
+      border: 1px solid rgba(255, 255, 255, 0.05);
+      border-radius: 20px;
+      padding: 24px;
+      box-shadow: 0 15px 35px rgba(0, 0, 0, 0.5);
+    }}
+    h1 {{
+      font-size: 1.8rem;
+      font-weight: 800;
+      margin-top: 0;
+      margin-bottom: 8px;
+      background: linear-gradient(135deg, #6c63ff, #e044ab);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+    }}
+    p {{
+      color: #b0b0c0;
+      font-size: 0.95rem;
+      margin-bottom: 24px;
+    }}
+    .image-preview {{
+      width: 100%;
+      border-radius: 12px;
+      overflow: hidden;
+      margin-bottom: 24px;
+      box-shadow: 0 8px 24px rgba(0, 0, 0, 0.3);
+      border: 2px solid rgba(255, 255, 255, 0.1);
+    }}
+    .image-preview img {{
+      width: 100%;
+      height: auto;
+      display: block;
+    }}
+    .btn {{
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      width: 100%;
+      padding: 14px;
+      border-radius: 12px;
+      font-size: 1rem;
+      font-weight: 600;
+      border: none;
+      cursor: pointer;
+      margin-bottom: 12px;
+      transition: all 0.2s ease;
+      box-sizing: border-box;
+      text-decoration: none;
+    }}
+    .btn-share {{
+      background: linear-gradient(135deg, #6c63ff, #e044ab);
+      color: white;
+    }}
+    .btn-download {{
+      background: linear-gradient(135deg, #11998e, #38ef7d);
+      color: white;
+    }}
+    .btn:active {{
+      transform: scale(0.98);
+    }}
+    .footer {{
+      margin-top: 24px;
+      font-size: 0.8rem;
+      color: #555;
+    }}
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>📸 Photo Saved!</h1>
+    <p>Your photo booth memory is ready.</p>
+    
+    <div class="image-preview">
+      <img id="booth-img" src="{image_url}" alt="Photo Booth Capture">
+    </div>
+    
+    <button class="btn btn-share" id="share-btn">
+      📤 Share Photo
+    </button>
+    
+    <a href="{image_url}" download="photobooth_capture.png" class="btn btn-download" id="download-btn">
+      📥 Download Photo
+    </a>
+    
+    <div class="footer">
+      Powered by AI Photo Booth
+    </div>
+  </div>
+
+  <script>
+    const shareBtn = document.getElementById('share-btn');
+    const imageUrl = "{image_url}";
+    
+    shareBtn.addEventListener('click', async () => {{
+      if (navigator.share) {{
+        try {{
+          const response = await fetch(imageUrl);
+          const blob = await response.blob();
+          const file = new File([blob], 'photo.png', {{ type: 'image/png' }});
+          
+          if (navigator.canShare && navigator.canShare({{ files: [file] }})) {{
+            await navigator.share({{
+              files: [file],
+              title: 'My Photo Booth Capture',
+              text: 'Check out my photo from the AI Photo Booth!'
+            }});
+            return;
+          }}
+        }} catch (err) {{
+          console.log("File sharing failed, falling back to URL sharing:", err);
+        }}
+        
+        try {{
+          await navigator.share({{
+            title: 'My Photo Booth Capture',
+            text: 'Check out my photo from the AI Photo Booth!',
+            url: window.location.href
+          }});
+        }} catch (err) {{
+          console.log("Web share failed:", err);
+        }}
+      }} else {{
+        alert("Native sharing is not supported on this browser/device. You can download the photo directly.");
+      }}
+    }});
+  </script>
+</body>
+</html>
+"""
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -486,6 +664,10 @@ if not st.session_state.captured:
             elif ctx.video_processor.portrait is None:
                 st.warning("No frame captured yet — wait a moment and try again.")
             else:
+                # Trigger visual flash feedback
+                st.markdown("<div class='flash-active'></div>", unsafe_allow_html=True)
+                time.sleep(0.3)
+                
                 with st.spinner("Processing…"):
 
                     portrait_bgr = ctx.video_processor.portrait
@@ -518,15 +700,25 @@ if not st.session_state.captured:
                     # ── Upload to S3 ───────────────────────────────────
                     ts        = int(time.time())
                     file_name = f"photo_{ts}.png"
+                    html_file_name = f"photo_{ts}.html"
                     photo_url = "#"
                     try:
+                        # 1. Upload PNG image
                         s3.put_object(
                             Bucket=S3_BUCKET, Key=file_name,
                             Body=img_bytes,   ContentType="image/png",
                         )
-                        photo_url = (
-                            f"https://{S3_BUCKET}.s3.amazonaws.com/{file_name}"
+                        raw_image_url = f"https://{S3_BUCKET}.s3.amazonaws.com/{file_name}"
+                        
+                        # 2. Generate and upload HTML Share Page
+                        share_html = generate_share_page(raw_image_url)
+                        s3.put_object(
+                            Bucket=S3_BUCKET, Key=html_file_name,
+                            Body=share_html.encode("utf-8"), ContentType="text/html",
                         )
+                        
+                        # Point QR code and links to the HTML page
+                        photo_url = f"https://{S3_BUCKET}.s3.amazonaws.com/{html_file_name}"
                     except Exception as e:
                         st.error(f"S3 upload error: {e}")
 
@@ -660,31 +852,15 @@ else:
 
         st.divider()
 
-        # ── Download ───────────────────────────────────────────────────
-        st.markdown("#### 📥 Save Your Photo")
-        st.download_button(
-            label="Download Framed Photo",
-            data=st.session_state.image_bytes,
-            file_name=st.session_state.file_name,
-            mime="image/png",
-            use_container_width=True,
-        )
-
-        st.divider()
-
         # ── QR Code ────────────────────────────────────────────────────
         url = st.session_state.photo_url
         if url and url != "#":
-            st.markdown("#### 📱 Scan to Get Your Photo")
+            st.markdown("#### 📱 Scan to Share & Download")
             qr_pil = qrcode.make(url)
             qr_buf = BytesIO()
             qr_pil.save(qr_buf, format="PNG")
 
-            qr_col, info_col = st.columns([1, 2])
-            with qr_col:
-                st.image(qr_buf.getvalue(), width=160)
-            with info_col:
-                st.caption("Point your phone camera at this QR code")
-                st.code(url, language=None)
+            st.image(qr_buf.getvalue(), width=280)
+            st.caption("Scan with your phone to open the mobile-friendly share and download page!")
         else:
             st.info("Photo URL not available (S3 upload may have failed).")
