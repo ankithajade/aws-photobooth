@@ -467,6 +467,23 @@ code {
 
 /* ══════════ SPINNER ══════════ */
 .stSpinner > div { border-top-color: #ff2d75 !important; }
+
+@keyframes flash-animation {
+    0% { opacity: 0; }
+    10% { opacity: 1; }
+    100% { opacity: 0; }
+}
+.flash-active {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100vw;
+    height: 100vh;
+    background-color: rgba(255, 255, 255, 0.95);
+    z-index: 99999;
+    pointer-events: none;
+    animation: flash-animation 0.4s ease-out forwards;
+}
 </style>
 
 <!-- Tech grid overlay -->
@@ -1186,6 +1203,10 @@ if not st.session_state.captured:
             elif ctx.video_processor.portrait is None:
                 st.warning("⏳ No frame captured yet — wait a moment and try again.")
             else:
+                # Trigger visual flash feedback
+                st.markdown("<div class='flash-active'></div>", unsafe_allow_html=True)
+                time.sleep(0.3)
+
                 with st.spinner("✨ Analyzing your photo with AI…"):
 
                     portrait_bgr = ctx.video_processor.portrait
