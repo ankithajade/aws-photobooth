@@ -577,10 +577,14 @@ setTimeout(function() { window.dispatchEvent(new Event('resize')); }, 1200);
 # AWS CLIENTS
 # ─────────────────────────────────────────────────────────────────────────────
 
-_KEY    = "AKIAWWJIEP3GN5ZFX3RS"
-_SECRET = "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"
-_REGION = "ap-south-1"
-S3_BUCKET = "vignanotsava-photo-booth"
+try:
+    _KEY    = st.secrets["AWS_ACCESS_KEY_ID"]
+    _SECRET = st.secrets["AWS_SECRET_ACCESS_KEY"]
+    _REGION = st.secrets["AWS_DEFAULT_REGION"]
+    S3_BUCKET = st.secrets["S3_BUCKET"]
+except KeyError as e:
+    st.error(f"Missing configuration in secrets: {e}. Please configure your .streamlit/secrets.toml file.")
+    st.stop()
 
 rekognition = boto3.client(
     "rekognition", aws_access_key_id=_KEY,
