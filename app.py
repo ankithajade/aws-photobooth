@@ -822,9 +822,9 @@ def generate_share_page(image_url: str, file_name: str) -> str:
 <meta name="viewport" content="width=device-width,initial-scale=1.0,user-scalable=no">
 <meta name="theme-color" content="#08080d">
 <meta property="og:image" content="__IMG__">
-<meta property="og:title" content="My AI Photo Booth Snap! &#128248;">
-<meta property="og:description" content="Captured at Vignanotsava AI Photo Booth &#10024;">
-<title>AI Photo Booth &#10024; &#8212; My Photo</title>
+<meta property="og:title" content="My AI Photo Booth Snap! 📸">
+<meta property="og:description" content="Captured at AWS SBG AI Photo Booth ✨">
+<title>AI Photo Booth</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;600;700;800&display=swap" rel="stylesheet">
 <style>
@@ -959,40 +959,23 @@ body::after{
 <div class="container">
 
   <div class="header">
-    <h1>AI Photo Booth &#128248;</h1>
+    <h1>AI Photo Booth <span style="-webkit-text-fill-color: initial;">📸</span></h1>
     <p>Crafted by <span>Ankitha Jade</span> and <span>Sadhana S</span></p>
   </div>
 
   <div class="photo-wrap">
     <img src="__IMG__" alt="Your AI Photo Booth Snap" />
-    <div class="badge">&#10024; AI Captured</div>
+    <div class="badge">✨ AI Captured</div>
   </div>
 
   <div class="btn-group">
-    <button class="btn btn-share" onclick="sharePhoto()">&#128640; Share Photo</button>
-    <button class="btn btn-dl"    onclick="downloadPhoto()">&#11015;&#65039; Save to Phone</button>
-  </div>
-
-  <div class="divider">or share directly to</div>
-
-  <div class="social-row">
-    <a class="s-btn" href="__WA__" target="_blank">
-      <span class="ic">&#128172;</span>WhatsApp
-    </a>
-    <a class="s-btn" href="__TG__" target="_blank">
-      <span class="ic">&#9992;&#65039;</span>Telegram
-    </a>
-    <a class="s-btn" href="__MAIL__" target="_blank">
-      <span class="ic">&#128231;</span>Email
-    </a>
-    <a class="s-btn" onclick="copyLink()" style="cursor:pointer;">
-      <span class="ic">&#128279;</span>Copy Link
-    </a>
+    <button class="btn btn-share" onclick="sharePhoto()">🚀 Share Photo</button>
+    <button class="btn btn-dl"    onclick="downloadPhoto()">⬇️ Save to Phone</button>
   </div>
 
   <div class="footer">
-    Powered by <strong>Vignanotsava AI Photo Booth</strong><br>
-    AWS Rekognition &#183; AI Personality Engine
+    Powered by <strong>AWS SBG AI Photo Booth</strong><br>
+    AWS Rekognition · AI Personality Engine
   </div>
 
 </div>
