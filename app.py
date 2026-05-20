@@ -1559,6 +1559,7 @@ def render_photobooth_page():
                 desired_playing_state=True,
                 mode=WebRtcMode.SENDRECV,
                 video_processor_factory=VideoProcessor,
+                rtc_configuration={"iceServers": [{"urls": ["stun:stun.l.google.com:19302"]}]},
                 media_stream_constraints={
                     "video": {
                         "width": {"ideal": 1080},
@@ -2114,6 +2115,7 @@ def render_photostrip_page():
                 desired_playing_state=True,
                 mode=WebRtcMode.SENDRECV,
                 video_processor_factory=StripVideoProcessor,
+                rtc_configuration={"iceServers": [{"urls": ["stun:stun.l.google.com:19302"]}]},
                 media_stream_constraints={
                     "video": {
                         "width": {"ideal": 1280},
