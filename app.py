@@ -331,9 +331,19 @@ class VideoProcessor:
             overlay = self._overlay
 
         # ── Crop webcam to the frame window's aspect ratio ────────────────
-        crop_w = min(int(h * ratio), w)
-        x1 = (w - crop_w) // 2
-        portrait_bgr = img[:, x1: x1 + crop_w]
+        # Handles both landscape and portrait camera feeds dynamically
+        feed_ratio = w / h
+        if feed_ratio > ratio:
+            # Camera feed is wider than target ratio → crop sides (width)
+            crop_w = int(h * ratio)
+            x1 = (w - crop_w) // 2
+            portrait_bgr = img[:, x1: x1 + crop_w]
+        else:
+            # Camera feed is taller than target ratio → crop top/bottom (height)
+            crop_h = int(w / ratio)
+            y1 = (h - crop_h) // 2
+            portrait_bgr = img[y1: y1 + crop_h, :]
+
         self.portrait = portrait_bgr   # store full-res for capture
 
         # ── Build preview canvas (white bg, frame dimensions) ─────────────
@@ -428,8 +438,8 @@ if not st.session_state.captured:
             video_processor_factory=VideoProcessor,
             media_stream_constraints={
                 "video": {
-                    "width": {"ideal": 1920},
-                    "height": {"ideal": 1080},
+                    "width": {"ideal": 1080},   # Request portrait orientation as ideal
+                    "height": {"ideal": 1920},
                     "frameRate": {"ideal": 30}
                 },
                 "audio": False
