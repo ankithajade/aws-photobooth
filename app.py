@@ -18,6 +18,7 @@ from streamlit_webrtc import WebRtcMode, webrtc_streamer, VideoHTMLAttributes
 import ai_personality as aip
 import caption_generator as cg
 import vibe_engine as ve
+import analysis_image
 
 st.set_page_config(
     page_title="AI Photo Booth ✨",
@@ -846,7 +847,7 @@ class VideoProcessor:
 
 import urllib.parse as _urlparse
 
-def generate_share_page(image_url: str, file_name: str) -> str:
+def generate_share_page(image_url: str, file_name: str, analysis_url: str = None, analysis_file_name: str = None) -> str:
     """
     Build a self-contained mobile-first HTML share page.
     The QR code points here instead of the raw S3 image URL.
@@ -1015,6 +1016,8 @@ body::after{
     <button class="btn btn-dl"    onclick="downloadPhoto()">⬇️ Save to Phone</button>
   </div>
 
+  __ANALYSIS_CARD__
+
   <div class="footer">
     Powered by <strong>AWS SBG AI Photo Booth</strong><br>
     AWS Rekognition · AI Personality Engine
@@ -1088,6 +1091,8 @@ function copyLink() {
     toast('Link: ' + link);
   }
 }
+
+__ANALYSIS_JS__
 </script>
 </body>
 </html>
@@ -1097,6 +1102,77 @@ function copyLink() {
     html = html.replace("__WA__",   wa_url)
     html = html.replace("__TG__",   tg_url)
     html = html.replace("__MAIL__", mail_url)
+
+    if analysis_url:
+        card_html = """
+  <div class="divider">AI Insights</div>
+
+  <div class="photo-wrap">
+    <img src="__ANALYSIS_IMG__" alt="Your AI Photo Booth Analysis" />
+    <div class="badge">🤖 AI Analysis</div>
+  </div>
+
+  <div class="btn-group">
+    <button class="btn btn-share" onclick="shareAnalysis()">🚀 Share AI Analysis</button>
+    <button class="btn btn-dl"    onclick="downloadAnalysis()">⬇️ Save to Phone</button>
+  </div>
+"""
+        js_code = """
+var ANALYSIS_IMG = "__ANALYSIS_IMG__";
+var ANALYSIS_FN  = "__ANALYSIS_FN__";
+
+async function shareAnalysis() {
+  if (!navigator.share) { copyLink(); return; }
+  try {
+    var res  = await fetch(ANALYSIS_IMG);
+    var blob = await res.blob();
+    var file = new File([blob], ANALYSIS_FN, { type: 'image/png' });
+    if (navigator.canShare && navigator.canShare({ files: [file] })) {
+      await navigator.share({
+        files: [file],
+        title: 'My AI Photo Booth Analysis! 🤖',
+        text:  'Check out my AI personality analysis from Vignanotsava! ✨'
+      });
+    } else {
+      await navigator.share({
+        title: 'My AI Photo Booth Analysis! 🤖',
+        text:  'Check out my AI personality analysis from Vignanotsava! ✨',
+        url:   ANALYSIS_IMG
+      });
+    }
+  } catch(e) {
+    if (e.name !== 'AbortError') copyLink();
+  }
+}
+
+async function downloadAnalysis() {
+  try {
+    var res  = await fetch(ANALYSIS_IMG);
+    var blob = await res.blob();
+    var url  = URL.createObjectURL(blob);
+    var a    = document.createElement('a');
+    a.href = url; a.download = ANALYSIS_FN;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+    toast('✅ Saved to your photos!');
+  } catch(e) {
+    window.open(ANALYSIS_IMG, '_blank');
+    toast('✅ Image opened — save from here!');
+  }
+}
+"""
+        card_html = card_html.replace("__ANALYSIS_IMG__", analysis_url)
+        js_code = js_code.replace("__ANALYSIS_IMG__", analysis_url)
+        js_code = js_code.replace("__ANALYSIS_FN__", analysis_file_name or "analysis.png")
+
+        html = html.replace("__ANALYSIS_CARD__", card_html)
+        html = html.replace("__ANALYSIS_JS__", js_code)
+    else:
+        html = html.replace("__ANALYSIS_CARD__", "")
+        html = html.replace("__ANALYSIS_JS__", "")
+
     return html
 
 
@@ -1409,6 +1485,9 @@ def _init_state():
         "file_name":     None,
         "photo_url":     None,
         "rek_faces":     [],            
+        "analysis_url":  None,
+        "analysis_results": [],
+        "group_vibe":    "",
     }
     for k, v in pb_defaults.items():
         if k not in st.session_state:
@@ -1670,6 +1749,29 @@ def render_photobooth_page():
                             faces = []
                             st.error(f"Rekognition error: {e}")
     
+                        # ── Pre-calculate and cache AI Analysis ────────────
+                        analysis_results = []
+                        group_vibe = ""
+                        if faces:
+                            if len(faces) >= 2:
+                                group_vibe = ve.get_group_vibe(faces)
+                            for face_data in faces:
+                                top_emotion = max(face_data["Emotions"], key=lambda e: e["Confidence"])
+                                age_lo      = face_data["AgeRange"]["Low"]
+                                age_hi      = face_data["AgeRange"]["High"]
+                                personality = aip.get_personality(face_data)
+                                caption     = cg.get_caption(face_data)
+                                badges      = aip.get_badges(face_data)
+                                vibes       = ve.get_vibes(face_data)
+                                analysis_results.append({
+                                    "emotion": top_emotion["Type"],
+                                    "age_range": f"{age_lo}–{age_hi}",
+                                    "personality": personality,
+                                    "caption": caption,
+                                    "badges": badges,
+                                    "vibes": vibes,
+                                })
+                                
                         # ── Composite photo into frame ──────────────────────
                         final_img = composite(portrait_pil, res)
     
@@ -1677,14 +1779,23 @@ def render_photobooth_page():
                         buf = BytesIO()
                         final_img.save(buf, format="PNG")
                         img_bytes = buf.getvalue()
+                        
+                        # ── Generate dynamic Pillow graphic ──────────────────
+                        analysis_pil = analysis_image.generate_analysis_image(analysis_results, group_vibe)
+                        analysis_buf = BytesIO()
+                        analysis_pil.save(analysis_buf, format="PNG")
+                        analysis_bytes = analysis_buf.getvalue()
     
-                        # ── Upload to S3 ───────────────────────────────────
+                        # ── Upload both to S3 ───────────────────────────────────
                         ts        = int(time.time())
                         uid       = uuid.uuid4().hex[:6]
                         file_name = f"photo_{ts}_{uid}.png"
+                        analysis_file_name = f"analysis_{ts}_{uid}.png"
                         image_url = "#"   # raw image URL
+                        analysis_url = "#"
                         photo_url = "#"   # share-page URL (used for QR)
                         try:
+                            # 1. Upload final photo
                             s3.put_object(
                                 Bucket=S3_BUCKET, Key=file_name,
                                 Body=img_bytes,   ContentType="image/png",
@@ -1692,8 +1803,23 @@ def render_photobooth_page():
                             image_url = (
                                 f"https://{S3_BUCKET}.s3.amazonaws.com/{file_name}"
                             )
+                            
+                            # 2. Upload AI Analysis graphic
+                            s3.put_object(
+                                Bucket=S3_BUCKET, Key=analysis_file_name,
+                                Body=analysis_bytes, ContentType="image/png",
+                            )
+                            analysis_url = (
+                                f"https://{S3_BUCKET}.s3.amazonaws.com/{analysis_file_name}"
+                            )
+                            
                             # ── Generate & upload mobile share page ────────
-                            share_html = generate_share_page(image_url, file_name)
+                            share_html = generate_share_page(
+                                image_url=image_url, 
+                                file_name=file_name,
+                                analysis_url=analysis_url,
+                                analysis_file_name=analysis_file_name
+                            )
                             share_key  = f"share_{ts}_{uid}.html"
                             s3.put_object(
                                 Bucket=S3_BUCKET, Key=share_key,
@@ -1709,12 +1835,15 @@ def render_photobooth_page():
                                 photo_url = image_url  # fallback: QR → raw image
     
                         # ── Store in session state → trigger State 2 ───────
-                        st.session_state.captured    = True
-                        st.session_state.final_image = final_img
-                        st.session_state.image_bytes = img_bytes
-                        st.session_state.file_name   = file_name
-                        st.session_state.photo_url   = photo_url
-                        st.session_state.rek_faces   = faces
+                        st.session_state.captured         = True
+                        st.session_state.final_image      = final_img
+                        st.session_state.image_bytes      = img_bytes
+                        st.session_state.file_name        = file_name
+                        st.session_state.photo_url        = photo_url
+                        st.session_state.rek_faces        = faces
+                        st.session_state.analysis_url     = analysis_url
+                        st.session_state.analysis_results = analysis_results
+                        st.session_state.group_vibe       = group_vibe
     
                     st.rerun()
     
@@ -1793,10 +1922,12 @@ def render_photobooth_page():
             if st.button("🔄  Take Another Photo", key="reset", use_container_width=True):
                 st.session_state.camera_run_id += 1
                 for k in ["captured", "final_image", "image_bytes",
-                          "file_name", "photo_url", "rek_faces"]:
+                          "file_name", "photo_url", "rek_faces",
+                          "analysis_url", "analysis_results", "group_vibe"]:
                     st.session_state[k] = (
                         False if k == "captured" else
-                        [] if k == "rek_faces" else None
+                        [] if k == "rek_faces" or k == "analysis_results" else
+                        "" if k == "group_vibe" else None
                     )
                 st.rerun()
             st.markdown("</div>", unsafe_allow_html=True)
@@ -1821,7 +1952,7 @@ def render_photobooth_page():
                     st.markdown("<p class='sec-label'>Team Chemistry & Share</p>", unsafe_allow_html=True)
                     vibe_col, qr_col = st.columns([3, 2], gap="medium")
                     with vibe_col:
-                        group_vibe = ve.get_group_vibe(faces)
+                        group_vibe = st.session_state.group_vibe
                         st.markdown(
                             f"<div class='ai-face-card' style='background: linear-gradient(135deg, rgba(108,59,255,0.08), rgba(255,45,117,0.08)); border-color: rgba(108,59,255,0.25); text-align: center; height: 130px; display: flex; flex-direction: column; justify-content: center; align-items: center; margin-bottom: 0px; padding: 15px; box-sizing: border-box;'>"
                             f"<p class='sec-label' style='color: #a855f7; margin-bottom: 4px; font-size: 0.65rem; text-transform: uppercase;'>Team Vibe</p>"
@@ -1847,25 +1978,23 @@ def render_photobooth_page():
     
                     st.divider()
     
-                    # 2. Extract Data for both people independently
-                    f1_data = faces[0]
-                    f2_data = faces[1]
-    
-                    p1_emotion = max(f1_data["Emotions"], key=lambda e: e["Confidence"])
-                    p1_age_lo  = f1_data["AgeRange"]["Low"]
-                    p1_age_hi  = f1_data["AgeRange"]["High"]
-                    p1_personality = aip.get_personality(f1_data)
-                    p1_caption = cg.get_caption(f1_data)
-                    p1_badges = aip.get_badges(f1_data)
-                    p1_vibes = ve.get_vibes(f1_data)
-    
-                    p2_emotion = max(f2_data["Emotions"], key=lambda e: e["Confidence"])
-                    p2_age_lo  = f2_data["AgeRange"]["Low"]
-                    p2_age_hi  = f2_data["AgeRange"]["High"]
-                    p2_personality = aip.get_personality(f2_data)
-                    p2_caption = cg.get_caption(f2_data)
-                    p2_badges = aip.get_badges(f2_data)
-                    p2_vibes = ve.get_vibes(f2_data)
+                    # 2. Extract Cached Data for both people independently
+                    p1_info = st.session_state.analysis_results[0]
+                    p2_info = st.session_state.analysis_results[1]
+                    
+                    p1_personality = p1_info["personality"]
+                    p1_caption     = p1_info["caption"]
+                    p1_badges      = p1_info["badges"]
+                    p1_vibes       = p1_info["vibes"]
+                    p1_emotion_type= p1_info["emotion"]
+                    p1_age_range   = p1_info["age_range"]
+                    
+                    p2_personality = p2_info["personality"]
+                    p2_caption     = p2_info["caption"]
+                    p2_badges      = p2_info["badges"]
+                    p2_vibes       = p2_info["vibes"]
+                    p2_emotion_type= p2_info["emotion"]
+                    p2_age_range   = p2_info["age_range"]
     
                     # Emoji helper mapping
                     emoji_map = {
@@ -1873,8 +2002,8 @@ def render_photobooth_page():
                         "CONFUSED": "🤔", "DISGUSTED": "🤢", "SURPRISED": "😲",
                         "CALM": "😌", "FEAR": "😰",
                     }
-                    p1_emoji = emoji_map.get(p1_emotion["Type"], "🎭")
-                    p2_emoji = emoji_map.get(p2_emotion["Type"], "🎭")
+                    p1_emoji = emoji_map.get(p1_emotion_type, "🎭")
+                    p2_emoji = emoji_map.get(p2_emotion_type, "🎭")
     
                     # 3. Two columns side-by-side
                     p1_col, p2_col = st.columns(2, gap="medium")
@@ -1885,8 +2014,8 @@ def render_photobooth_page():
                             f"<div style='display: flex; justify-content: space-between; align-items: center; margin-bottom: 4px;'>"
                             f"<p class='ai-face-label' style='margin: 0;'>{p1_emoji} Person 1</p>"
                             f"<div style='display: flex; gap: 4px; align-items: center; flex-wrap: wrap;'>"
-                            f"<span style='background: rgba(255,45,117,0.15); color: #ff6b6b; padding: 2px 6px; border-radius: 6px; font-size: 0.72rem; font-weight: 600; font-family: \"Space Grotesk\"; border: 1px solid rgba(255,45,117,0.2);'>{p1_age_lo}–{p1_age_hi} yrs</span>"
-                            f"<span style='background: rgba(108,59,255,0.15); color: #a855f7; padding: 2px 6px; border-radius: 6px; font-size: 0.72rem; font-weight: 600; font-family: \"Space Grotesk\"; border: 1px solid rgba(108,59,255,0.2);'>{p1_emoji} {p1_emotion['Type'].capitalize()}</span>"
+                            f"<span style='background: rgba(255,45,117,0.15); color: #ff6b6b; padding: 2px 6px; border-radius: 6px; font-size: 0.72rem; font-weight: 600; font-family: \"Space Grotesk\"; border: 1px solid rgba(255,45,117,0.2);'>{p1_age_range}</span>"
+                            f"<span style='background: rgba(108,59,255,0.15); color: #a855f7; padding: 2px 6px; border-radius: 6px; font-size: 0.72rem; font-weight: 600; font-family: \"Space Grotesk\"; border: 1px solid rgba(108,59,255,0.2);'>{p1_emoji} {p1_emotion_type.capitalize()}</span>"
                             f"</div>"
                             f"</div>"
                             f"<p style='margin: 6px 0 0; font-size: 0.8rem; color: #a0a0b8; font-style: italic;'>\"{p1_caption}\"</p>"
@@ -1933,14 +2062,18 @@ def render_photobooth_page():
     
                         # Move Full Breakdown under Person 1 column
                         with st.expander("Person 1 Full Breakdown"):
+                            f1_data = faces[0]
                             for e in sorted(
                                 f1_data["Emotions"],
                                 key=lambda x: x["Confidence"], reverse=True,
                             ):
-                                st.progress(
-                                    min(int(e["Confidence"]), 100),
-                                    text=f"{e['Type'].capitalize()} ({e['Confidence']:.1f}%)"
+                                st.markdown(
+                                    f"<span style='color:#f5f5f7; font-size:0.78rem; font-weight:600; "
+                                    f"font-family:\"Space Grotesk\", sans-serif;'>"
+                                    f"{e['Type'].capitalize()} &nbsp;<span style='color:#a0a0b8; font-weight:400;'>({e['Confidence']:.1f}%)</span></span>",
+                                    unsafe_allow_html=True
                                 )
+                                st.progress(min(int(e["Confidence"]), 100))
     
                     with p2_col:
                         st.markdown(
@@ -1948,8 +2081,8 @@ def render_photobooth_page():
                             f"<div style='display: flex; justify-content: space-between; align-items: center; margin-bottom: 4px;'>"
                             f"<p class='ai-face-label' style='margin: 0;'>{p2_emoji} Person 2</p>"
                             f"<div style='display: flex; gap: 4px; align-items: center; flex-wrap: wrap;'>"
-                            f"<span style='background: rgba(255,45,117,0.15); color: #ff6b6b; padding: 2px 6px; border-radius: 6px; font-size: 0.72rem; font-weight: 600; font-family: \"Space Grotesk\"; border: 1px solid rgba(255,45,117,0.2);'>{p2_age_lo}–{p2_age_hi} yrs</span>"
-                            f"<span style='background: rgba(108,59,255,0.15); color: #a855f7; padding: 2px 6px; border-radius: 6px; font-size: 0.72rem; font-weight: 600; font-family: \"Space Grotesk\"; border: 1px solid rgba(108,59,255,0.2);'>{p2_emoji} {p2_emotion['Type'].capitalize()}</span>"
+                            f"<span style='background: rgba(255,45,117,0.15); color: #ff6b6b; padding: 2px 6px; border-radius: 6px; font-size: 0.72rem; font-weight: 600; font-family: \"Space Grotesk\"; border: 1px solid rgba(255,45,117,0.2);'>{p2_age_range}</span>"
+                            f"<span style='background: rgba(108,59,255,0.15); color: #a855f7; padding: 2px 6px; border-radius: 6px; font-size: 0.72rem; font-weight: 600; font-family: \"Space Grotesk\"; border: 1px solid rgba(108,59,255,0.2);'>{p2_emoji} {p2_emotion_type.capitalize()}</span>"
                             f"</div>"
                             f"</div>"
                             f"<p style='margin: 6px 0 0; font-size: 0.8rem; color: #a0a0b8; font-style: italic;'>\"{p2_caption}\"</p>"
@@ -1996,28 +2129,31 @@ def render_photobooth_page():
     
                         # Move Full Breakdown under Person 2 column
                         with st.expander("Person 2 Full Breakdown"):
+                            f2_data = faces[1]
                             for e in sorted(
                                 f2_data["Emotions"],
                                 key=lambda x: x["Confidence"], reverse=True,
                             ):
-                                st.progress(
-                                    min(int(e["Confidence"]), 100),
-                                    text=f"{e['Type'].capitalize()} ({e['Confidence']:.1f}%)"
+                                st.markdown(
+                                    f"<span style='color:#f5f5f7; font-size:0.78rem; font-weight:600; "
+                                    f"font-family:\"Space Grotesk\", sans-serif;'>"
+                                    f"{e['Type'].capitalize()} &nbsp;<span style='color:#a0a0b8; font-weight:400;'>({e['Confidence']:.1f}%)</span></span>",
+                                    unsafe_allow_html=True
                                 )
+                                st.progress(min(int(e["Confidence"]), 100))
     
                 # ═════════════════════════════════════════════════════════════════
                 # CASE B: ONE PERSON DETECTED
                 # ═════════════════════════════════════════════════════════════════
                 else:
                     face_data = faces[0]
-                    top_emotion = max(face_data["Emotions"], key=lambda e: e["Confidence"])
-                    age_lo      = face_data["AgeRange"]["Low"]
-                    age_hi      = face_data["AgeRange"]["High"]
-    
-                    personality = aip.get_personality(face_data)
-                    caption = cg.get_caption(face_data)
-                    badges = aip.get_badges(face_data)
-                    vibes = ve.get_vibes(face_data)
+                    info = st.session_state.analysis_results[0]
+                    personality = info["personality"]
+                    caption     = info["caption"]
+                    badges      = info["badges"]
+                    vibes       = info["vibes"]
+                    emotion_type= info["emotion"]
+                    age_range   = info["age_range"]
     
                     # Emoji for top emotion
                     emoji_map = {
@@ -2025,7 +2161,7 @@ def render_photobooth_page():
                         "CONFUSED": "🤔", "DISGUSTED": "🤢", "SURPRISED": "😲",
                         "CALM": "😌", "FEAR": "😰",
                     }
-                    emotion_emoji = emoji_map.get(top_emotion["Type"], "🎭")
+                    emotion_emoji = emoji_map.get(emotion_type, "🎭")
     
                     # 1. Main Face Card: Shows Age, Emotion, & Funny Caption
                     st.markdown(
@@ -2033,8 +2169,8 @@ def render_photobooth_page():
                         f"<div style='display: flex; justify-content: space-between; align-items: center; margin-bottom: 4px;'>"
                         f"<p class='ai-face-label' style='margin: 0;'>{emotion_emoji} Detected Face</p>"
                         f"<div style='display: flex; gap: 6px; align-items: center;'>"
-                        f"<span style='background: rgba(255,45,117,0.15); color: #ff6b6b; padding: 4px 10px; border-radius: 8px; font-size: 0.8rem; font-weight: 600; font-family: \"Space Grotesk\"; border: 1px solid rgba(255,45,117,0.2);'>{age_lo}–{age_hi} yrs</span>"
-                        f"<span style='background: rgba(108,59,255,0.15); color: #a855f7; padding: 4px 10px; border-radius: 8px; font-size: 0.8rem; font-weight: 600; font-family: \"Space Grotesk\"; border: 1px solid rgba(108,59,255,0.2);'>{emotion_emoji} {top_emotion['Type'].capitalize()}</span>"
+                        f"<span style='background: rgba(255,45,117,0.15); color: #ff6b6b; padding: 4px 10px; border-radius: 8px; font-size: 0.8rem; font-weight: 600; font-family: \"Space Grotesk\"; border: 1px solid rgba(255,45,117,0.2);'>{age_range}</span>"
+                        f"<span style='background: rgba(108,59,255,0.15); color: #a855f7; padding: 4px 10px; border-radius: 8px; font-size: 0.8rem; font-weight: 600; font-family: \"Space Grotesk\"; border: 1px solid rgba(108,59,255,0.2);'>{emotion_emoji} {emotion_type.capitalize()}</span>"
                         f"</div>"
                         f"</div>"
                         f"<p style='margin: 6px 0 0; font-size: 0.85rem; color: #a0a0b8; font-style: italic;'>\"{caption}\"</p>"
@@ -2104,11 +2240,13 @@ def render_photobooth_page():
                             face_data["Emotions"],
                             key=lambda x: x["Confidence"], reverse=True,
                         ):
-                            st.progress(
-                                min(int(e["Confidence"]), 100),
-                                text=f"{e['Type'].capitalize()}  "
-                                     f"({e['Confidence']:.1f}%)",
+                            st.markdown(
+                                f"<span style='color:#f5f5f7; font-size:0.78rem; font-weight:600; "
+                                f"font-family:\"Space Grotesk\", sans-serif;'>"
+                                f"{e['Type'].capitalize()} &nbsp;<span style='color:#a0a0b8; font-weight:400;'>({e['Confidence']:.1f}%)</span></span>",
+                                unsafe_allow_html=True
                             )
+                            st.progress(min(int(e["Confidence"]), 100))
 
 def render_photostrip_page():
     # Title row: back button + title inline
