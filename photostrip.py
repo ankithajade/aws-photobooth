@@ -44,12 +44,21 @@ st.set_page_config(
 
 st.markdown("""
 <style>
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;700;900&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600;700;800&family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap');
 
-html, body, [class*="css"] { font-family: 'Inter', sans-serif; }
-.stApp { background: #08080f; }
-h1,h2,h3,h4 { color: #f0f0f5; }
-p, li { color: #b0b0c0; }
+html, body, [class*="css"] { font-family: 'Plus Jakarta Sans', sans-serif; }
+
+.stApp { 
+    background: linear-gradient(135deg, #fdfbfe 0%, #f6f3fa 40%, #f2f5ff 100%);
+    background-image: 
+        radial-gradient(circle at top right, rgba(255,90,223,0.03) 0%, transparent 40%),
+        radial-gradient(circle at bottom left, rgba(126,162,255,0.03) 0%, transparent 40%),
+        linear-gradient(rgba(26,26,46,0.025) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(26,26,46,0.025) 1px, transparent 1px);
+    background-size: 100% 100%, 100% 100%, 30px 30px, 30px 30px;
+}
+h1,h2,h3,h4 { font-family: 'Outfit', sans-serif; color: #1a1a2e !important; font-weight: 700; }
+p, li { color: #4a4a68; }
 
 /* ── flash overlay on capture ── */
 @keyframes flash-animation {
@@ -61,7 +70,7 @@ p, li { color: #b0b0c0; }
     position: fixed;
     top: 0; left: 0;
     width: 100vw; height: 100vh;
-    background-color: rgba(255, 255, 255, 0.95);
+    background-color: rgba(255, 255, 255, 0.98);
     z-index: 99999;
     pointer-events: none;
     animation: flash-animation 0.4s ease-out forwards;
@@ -69,71 +78,96 @@ p, li { color: #b0b0c0; }
 
 /* ── video element ── */
 video {
-    border-radius: 12px;
+    border-radius: 20px;
     max-height: 430px;
     width: 100% !important;
-    object-fit: contain;
-    background: #000;
+    object-fit: cover;
+    background: #fff;
+    border: 2px solid rgba(255,255,255,0.9);
+    box-shadow: 0 10px 30px rgba(126,162,255,0.1), 0 0 15px rgba(255,90,223,0.05);
 }
 
 /* ── buttons ── */
 .stButton > button {
-    border-radius: 10px;
+    border-radius: 50px;
     font-weight: 600;
-    transition: all .15s ease;
+    transition: all .2s cubic-bezier(0.34, 1.56, 0.64, 1);
 }
-.stButton > button:hover { transform: translateY(-2px); opacity: .86; }
+.stButton > button:hover { transform: translateY(-3px) scale(1.02); }
 
 button[kind="primary"], .primary-btn button {
-    background: linear-gradient(135deg,#6c63ff,#e044ab) !important;
+    background: linear-gradient(135deg, #ff5adf, #b27cff, #7ea2ff) !important;
     color: white !important;
-    border: none !important;
-    padding: .75rem !important;
-    font-size: 1.05rem !important;
+    border: 1px solid rgba(255,255,255,0.3) !important;
+    padding: .8rem !important;
+    font-size: 1.1rem !important;
+    font-weight: 700 !important;
     width: 100%;
+    box-shadow: 0 8px 20px rgba(211,108,255,0.25), inset 0 2px 4px rgba(255,255,255,0.4);
+}
+button[kind="primary"]:hover {
+    box-shadow: 0 12px 30px rgba(211,108,255,0.35), inset 0 2px 4px rgba(255,255,255,0.5) !important;
 }
 
 .reset-btn > button {
-    background: transparent !important;
-    border: 1.5px solid #444 !important;
-    color: #999 !important;
+    background: rgba(255,255,255,0.6) !important;
+    border: 1px solid rgba(126,162,255,0.2) !important;
+    border-top: 1px solid rgba(255,255,255,0.8) !important;
+    color: #4a4a68 !important;
     width: 100%;
+    backdrop-filter: blur(12px);
+    box-shadow: 0 4px 15px rgba(0,0,0,0.02);
+}
+.reset-btn > button:hover {
+    border-color: rgba(255,90,223,0.3) !important;
+    color: #d36cff !important;
+    background: rgba(255,255,255,0.95) !important;
+    box-shadow: 0 6px 20px rgba(126,162,255,0.08);
 }
 
 /* ── strip gallery thumbnail card ── */
 .strip-card {
-    border-radius: 12px;
-    border: 2.5px solid transparent;
-    padding: 8px;
+    border-radius: 20px;
+    border: 1px solid rgba(255,255,255,0.6);
+    border-top: 1px solid rgba(255,255,255,0.9);
+    padding: 10px;
     text-align: center;
-    background: #12121e;
-    transition: all .25s ease;
+    background: rgba(255,255,255,0.6);
+    backdrop-filter: blur(16px);
+    transition: all .3s cubic-bezier(0.34, 1.56, 0.64, 1);
     cursor: pointer;
-    margin-bottom: 4px;
+    margin-bottom: 8px;
+    box-shadow: 0 6px 15px rgba(126,162,255,0.08);
 }
 .strip-card:hover {
-    border-color: rgba(224, 68, 171, 0.3);
-    box-shadow: 0 0 10px rgba(224, 68, 171, 0.2);
+    border-color: rgba(255,90,223,0.3);
+    box-shadow: 0 10px 25px rgba(255,90,223,0.15);
+    transform: translateY(-3px);
 }
 .strip-card.selected {
-    border-color: #e044ab;
-    box-shadow: 0 0 18px rgba(224, 68, 171, 0.5),
-                inset 0 0 6px rgba(224, 68, 171, 0.15);
+    border-color: #ff5adf;
+    box-shadow: 0 10px 25px rgba(255,90,223,0.25), inset 0 0 10px rgba(255,255,255,0.5);
+    background: rgba(255,255,255,0.9);
 }
 
 /* ── result image ── */
-.stImage img { border-radius: 14px; }
+
+.stImage img { border-radius: 20px; border: 4px solid #fff; box-shadow: 0 12px 35px rgba(126,162,255,0.15); }
 
 /* ── divider ── */
-hr { border-color: #1e1e2e !important; }
+hr { border: none !important; height: 1.5px !important; background: linear-gradient(90deg, transparent, rgba(126,162,255,0.3), transparent) !important; margin: 20px 0 !important; }
 
 /* ── countdown text ── */
 .countdown-text {
-    font-size: 3rem;
+    font-size: 3.5rem;
+    font-family: 'Outfit', sans-serif;
     font-weight: 800;
     text-align: center;
-    color: #e044ab;
-    margin: 10px 0;
+    background: linear-gradient(135deg, #ff5adf, #7ea2ff);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    margin: 15px 0;
+    filter: drop-shadow(0 4px 12px rgba(255,90,223,0.2));
 }
 </style>
 """, unsafe_allow_html=True)
@@ -323,41 +357,58 @@ def _load_gallery_thumb(path: str) -> Image.Image:
 # ─────────────────────────────────────────────────────────────────────────────
 
 def generate_share_page(image_url: str) -> str:
-    """Build a dark-themed, responsive HTML page for mobile share & download."""
+    """Build a light-themed, modern responsive HTML page for mobile share & download."""
     return f"""<!DOCTYPE html>
 <html lang="en">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Photostrip Capture</title>
+  <title>✨ Photostrip Capture</title>
   <style>
-    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;700;900&display=swap');
+    @import url('https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600;700;800&family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap');
     body {{
       margin: 0; padding: 20px;
-      background: #08080f; color: #f0f0f5;
-      font-family: 'Inter', sans-serif;
+      background: linear-gradient(135deg, #fdfbfe 0%, #f6f3fa 40%, #f2f5ff 100%);
+      background-image: 
+        radial-gradient(circle at top right, rgba(255,90,223,0.03) 0%, transparent 40%),
+        radial-gradient(circle at bottom left, rgba(126,162,255,0.03) 0%, transparent 40%),
+        linear-gradient(rgba(26,26,46,0.025) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(26,26,46,0.025) 1px, transparent 1px);
+      background-size: 100% 100%, 100% 100%, 30px 30px, 30px 30px;
+      background-position: center center;
+      background-attachment: fixed;
+      color: #1a1a2e;
+      font-family: 'Plus Jakarta Sans', sans-serif;
       display: flex; flex-direction: column;
       align-items: center; justify-content: center;
       min-height: 100vh; box-sizing: border-box;
     }}
+    .glow-blob-1, .glow-blob-2 {{
+      position: fixed; border-radius: 50%; filter: blur(60px); opacity: 0.4; z-index: -1;
+    }}
+    .glow-blob-1 {{ width: 300px; height: 300px; top: 10%; left: 0; background: rgba(255,90,223,0.3); }}
+    .glow-blob-2 {{ width: 300px; height: 300px; bottom: 10%; right: 0; background: rgba(126,162,255,0.3); }}
+    
     .container {{
       max-width: 480px; width: 100%; text-align: center;
-      background: rgba(18,18,30,0.6); backdrop-filter: blur(10px);
-      border: 1px solid rgba(255,255,255,0.05);
-      border-radius: 20px; padding: 24px;
-      box-shadow: 0 15px 35px rgba(0,0,0,0.5);
+      background: rgba(255,255,255,0.65); backdrop-filter: blur(24px); -webkit-backdrop-filter: blur(24px);
+      border: 1px solid rgba(255,255,255,0.5); border-top: 1px solid rgba(255,255,255,1);
+      border-radius: 32px; padding: 32px 24px;
+      box-shadow: 0 15px 45px rgba(126,162,255,0.12), inset 0 0 0 1px rgba(255,255,255,0.4);
+      position: relative; overflow: hidden;
     }}
     h1 {{
-      font-size: 1.8rem; font-weight: 800; margin: 0 0 8px;
-      background: linear-gradient(135deg,#6c63ff,#e044ab);
+      font-family: 'Outfit', sans-serif;
+      font-size: 2rem; font-weight: 800; margin: 0 0 8px;
+      background: linear-gradient(135deg, #ff5adf, #7ea2ff);
       -webkit-background-clip: text; -webkit-text-fill-color: transparent;
     }}
-    p {{ color: #b0b0c0; font-size: .95rem; margin-bottom: 24px; }}
+    p {{ color: #4a4a68; font-size: 1rem; margin-bottom: 24px; font-weight: 500; }}
     .image-preview {{
-      width: 100%; border-radius: 12px; overflow: hidden;
-      margin-bottom: 24px; box-shadow: 0 8px 24px rgba(0,0,0,0.3);
-      border: 2px solid rgba(255,255,255,0.1);
-      display: flex; justify-content: center; background: #000;
+      width: 100%; border-radius: 20px; overflow: hidden;
+      margin-bottom: 24px; box-shadow: 0 12px 30px rgba(126,162,255,0.15), 0 0 15px rgba(255,90,223,0.05);
+      border: 4px solid #ffffff;
+      display: flex; justify-content: center; background: #fff;
     }}
     .image-preview img {{
       max-height: 55vh; width: auto;
@@ -365,21 +416,25 @@ def generate_share_page(image_url: str) -> str:
     }}
     .btn {{
       display: flex; align-items: center; justify-content: center;
-      gap: 8px; width: 100%; padding: 14px; border-radius: 12px;
-      font-size: 1rem; font-weight: 600; border: none; cursor: pointer;
-      margin-bottom: 12px; transition: all .2s ease;
-      box-sizing: border-box; text-decoration: none;
+      gap: 8px; width: 100%; padding: 16px; border-radius: 50px;
+      font-size: 1.05rem; font-weight: 700; border: none; cursor: pointer;
+      margin-bottom: 12px; transition: all .3s cubic-bezier(0.34, 1.56, 0.64, 1);
+      box-sizing: border-box; text-decoration: none; font-family: 'Outfit', sans-serif;
     }}
-    .btn-share {{ background: linear-gradient(135deg,#6c63ff,#e044ab); color: white; }}
-    .btn-download {{ background: linear-gradient(135deg,#11998e,#38ef7d); color: white; }}
+    .btn-share {{ background: linear-gradient(135deg, #ff5adf, #b27cff); color: white; border: 1px solid rgba(255,255,255,0.3); box-shadow: 0 8px 20px rgba(211,108,255,0.25), inset 0 2px 4px rgba(255,255,255,0.4); }}
+    .btn-download {{ background: linear-gradient(135deg, #b27cff, #69b0ff); color: white; border: 1px solid rgba(255,255,255,0.3); box-shadow: 0 8px 20px rgba(105,176,255,0.25), inset 0 2px 4px rgba(255,255,255,0.3); }}
+    .btn:hover {{ transform: translateY(-3px) scale(1.02); box-shadow: 0 12px 30px rgba(211,108,255,0.35), inset 0 2px 4px rgba(255,255,255,0.5); }}
     .btn:active {{ transform: scale(0.98); }}
-    .footer {{ margin-top: 24px; font-size: .8rem; color: #555; }}
+    .footer {{ margin-top: 24px; font-size: .85rem; color: #888899; font-weight: 600; display: flex; align-items: center; justify-content: center; gap: 6px; }}
+    .footer::before, .footer::after {{ content: '✦'; color: #7ea2ff; }}
   </style>
 </head>
 <body>
+  <div class="glow-blob-1"></div>
+  <div class="glow-blob-2"></div>
   <div class="container">
     <h1>📸 Photostrip Saved!</h1>
-    <p>Your photostrip memory is ready.</p>
+    <p>Your premium photostrip memory is ready.</p>
     <div class="image-preview">
       <img id="booth-img" src="{image_url}" alt="Photostrip Capture">
     </div>

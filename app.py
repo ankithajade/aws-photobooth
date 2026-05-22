@@ -28,15 +28,24 @@ st.set_page_config(
 )
 st.markdown("""
 <style>
-@import url('https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=DM+Sans:wght@400;500;600;700&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800&family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap');
 
 /* ══════════ RESET & BASE ══════════ */
 html, body, [class*="css"] {
-    font-family: 'DM Sans', sans-serif;
+    font-family: 'Plus Jakarta Sans', sans-serif;
 }
 
+/* Base Gradient & Soft Grid Pattern */
 .stApp {
-    background: #08080d;
+    background: linear-gradient(135deg, #fdfbfe 0%, #f6f3fa 40%, #f2f5ff 100%);
+    background-image: 
+        radial-gradient(circle at top right, rgba(255,90,223,0.03) 0%, transparent 40%),
+        radial-gradient(circle at bottom left, rgba(126,162,255,0.03) 0%, transparent 40%),
+        linear-gradient(rgba(26,26,46,0.025) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(26,26,46,0.025) 1px, transparent 1px);
+    background-size: 100% 100%, 100% 100%, 30px 30px, 30px 30px;
+    background-position: center center;
+    background-attachment: fixed;
     overflow-x: hidden;
 }
 
@@ -46,139 +55,105 @@ html, body, [class*="css"] {
     padding-bottom: 1.5rem !important;
 }
 
-/* ── Animated gradient orbs in background ── */
+/* ── Ambient Glow Blobs (Reduced blur for performance) ── */
 .stApp::before,
 .stApp::after {
     content: '';
     position: fixed;
     border-radius: 50%;
-    filter: blur(120px);
-    opacity: 0.35;
+    filter: blur(80px); /* Reduced from 140px */
+    opacity: 0.4;
     pointer-events: none;
     z-index: 0;
-    animation: orbFloat 18s ease-in-out infinite alternate;
+    animation: orbFloat 22s ease-in-out infinite alternate;
 }
 .stApp::before {
     width: 500px; height: 500px;
-    top: -10%; left: -8%;
-    background: radial-gradient(circle, #ff2d75 0%, transparent 70%);
+    top: -10%; left: -5%;
+    background: radial-gradient(circle, rgba(255,90,223,0.35) 0%, transparent 70%);
 }
 .stApp::after {
     width: 600px; height: 600px;
-    bottom: -15%; right: -10%;
-    background: radial-gradient(circle, #6c3bff 0%, transparent 70%);
-    animation-delay: -8s;
+    bottom: -10%; right: -5%;
+    background: radial-gradient(circle, rgba(126,162,255,0.3) 0%, transparent 70%);
+    animation-delay: -10s;
 }
 @keyframes orbFloat {
     0%   { transform: translate(0, 0) scale(1); }
-    50%  { transform: translate(40px, -30px) scale(1.12); }
+    50%  { transform: translate(40px, -20px) scale(1.05); }
     100% { transform: translate(-20px, 20px) scale(0.95); }
 }
 
-/* ── Tech Grid Pattern Overlay ── */
-.tech-grid {
-    position: fixed;
-    inset: 0;
-    pointer-events: none;
-    z-index: 0;
-    background-image:
-        linear-gradient(rgba(255,45,117,0.03) 1px, transparent 1px),
-        linear-gradient(90deg, rgba(255,45,117,0.03) 1px, transparent 1px);
-    background-size: 60px 60px;
-}
-
-/* ── Animated Scan Line ── */
-.scan-line {
-    position: fixed;
-    left: 0; right: 0;
-    height: 2px;
-    pointer-events: none;
-    z-index: 0;
-    background: linear-gradient(90deg,
-        transparent 0%,
-        rgba(255,45,117,0.15) 20%,
-        rgba(108,59,255,0.25) 50%,
-        rgba(255,45,117,0.15) 80%,
-        transparent 100%);
-    animation: scanMove 8s linear infinite;
-    box-shadow: 0 0 15px rgba(108,59,255,0.15);
-}
-@keyframes scanMove {
-    0%   { top: -2px; }
-    100% { top: 100vh; }
-}
-
-/* ── Circuit Trace Decorations ── */
-.circuit-corner {
-    position: fixed;
-    pointer-events: none;
-    z-index: 0;
-}
-.circuit-corner svg {
-    opacity: 0.08;
-}
-.circuit-tl { top: 20px; left: 20px; }
-.circuit-br { bottom: 20px; right: 20px; transform: rotate(180deg); }
-
 /* ══════════ TYPOGRAPHY ══════════ */
 h1, h2, h3, h4 {
-    font-family: 'Space Grotesk', sans-serif !important;
-    color: #f5f5f7 !important;
-    letter-spacing: -0.03em;
+    font-family: 'Outfit', sans-serif !important;
+    color: #1a1a2e !important;
+    letter-spacing: -0.02em;
+    font-weight: 700 !important;
 }
 p, li, span, label, .stMarkdown {
-    color: #a0a0b8;
+    color: #4a4a68;
 }
 
 /* ══════════ HIDE STREAMLIT CHROME ══════════ */
 #MainMenu, footer, header { display: none !important; }
 
 /* ══════════ SCROLLBAR ══════════ */
-::-webkit-scrollbar { width: 5px; }
+::-webkit-scrollbar { width: 6px; }
 ::-webkit-scrollbar-track { background: transparent; }
-::-webkit-scrollbar-thumb { background: rgba(255,45,117,0.25); border-radius: 10px; }
+::-webkit-scrollbar-thumb { background: rgba(126,162,255,0.4); border-radius: 10px; }
 
 /* ══════════ VIDEO — SIZING FIX ══════════ */
-/*  Use width:100% and max-width so the video occupies the full column width
-    for laptop screens, making it 5x larger than before.
-    Set border-radius to 0px to display as a proper rectangle.            */
 [data-testid="stVerticalBlock"] video,
 video {
     width: 80% !important;
     max-width: 275px !important;
     aspect-ratio: 2 / 3 !important;
     height: auto !important;
-    object-fit: contain;
-    border-radius: 0px !important;
-    background: #0c0c14;
-    border: 1px solid rgba(255,45,117,0.12);
+    object-fit: cover;
+    border-radius: 24px !important;
+    background: #ffffff;
+    border: 2px solid rgba(255,255,255,0.9);
+    box-shadow: 0 10px 30px rgba(126,162,255,0.1), 0 0 15px rgba(255,90,223,0.05);
     display: block !important;
     margin: 0 auto !important;
-    transition: border-color 0.4s ease;
+    transition: all 0.4s ease;
 }
 video:hover {
-    border-color: rgba(255,45,117,0.3);
-    box-shadow: 0 0 30px rgba(255,45,117,0.08);
+    box-shadow: 0 14px 35px rgba(126,162,255,0.15), 0 0 20px rgba(255,90,223,0.08);
+    transform: translateY(-2px);
 }
 
 /* ══════════ DIVIDERS ══════════ */
 hr {
     border: none !important;
-    height: 1px !important;
+    height: 1.5px !important;
     background: linear-gradient(90deg,
         transparent 0%,
-        rgba(255,45,117,0.3) 30%,
-        rgba(108,59,255,0.3) 70%,
+        rgba(255,90,223,0.2) 20%,
+        rgba(126,162,255,0.4) 50%,
+        rgba(255,90,223,0.2) 80%,
         transparent 100%) !important;
-    margin: 20px 0 !important;
+    margin: 30px 0 !important;
+    position: relative;
+}
+hr::after {
+    content: '✦';
+    position: absolute;
+    left: 50%;
+    top: 50%;
+    transform: translate(-50%, -50%);
+    color: #7ea2ff;
+    font-size: 14px;
+    background: #fdfbfe;
+    padding: 0 10px;
 }
 
 /* ══════════ BUTTONS — BASE ══════════ */
 .stButton > button {
-    border-radius: 14px;
-    font-family: 'Space Grotesk', sans-serif;
+    border-radius: 50px;
+    font-family: 'Outfit', sans-serif;
     font-weight: 600;
-    letter-spacing: -0.01em;
     transition: all 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
     position: relative;
     overflow: hidden;
@@ -194,23 +169,21 @@ hr {
 /* ── Capture Button ── */
 button[kind="primary"],
 .stButton > button[kind="primary"] {
-    background: linear-gradient(135deg, #ff2d75, #ff6b6b, #ff2d75) !important;
+    background: linear-gradient(135deg, #ff5adf, #b27cff, #7ea2ff) !important;
     background-size: 200% 200% !important;
-    animation: shimmerBtn 4s ease infinite !important;
+    animation: shimmerBtn 5s ease infinite !important;
     color: white !important;
-    border: none !important;
-    padding: 16px 24px !important;
+    border: 1px solid rgba(255,255,255,0.3) !important;
+    padding: 16px 32px !important;
     font-size: 1.15rem !important;
     font-weight: 700 !important;
-    box-shadow: 0 8px 30px rgba(255,45,117,0.35);
+    box-shadow: 0 8px 20px rgba(211,108,255,0.25), inset 0 2px 4px rgba(255,255,255,0.4);
     letter-spacing: 0.02em;
 }
 button[kind="primary"]:hover,
 .stButton > button[kind="primary"]:hover {
-    box-shadow: 0 12px 40px rgba(255,45,117,0.5) !important;
+    box-shadow: 0 12px 30px rgba(211,108,255,0.35), inset 0 2px 4px rgba(255,255,255,0.5) !important;
 }
-
-/* Force capture button text to be white */
 button[kind="primary"] *,
 .stButton > button[kind="primary"] * {
     color: white !important;
@@ -223,230 +196,276 @@ button[kind="primary"] *,
 
 /* ── Reset Button ── */
 .reset-btn button {
-    background: transparent !important;
-    border: 1.5px solid rgba(255,255,255,0.1) !important;
-    color: #777 !important;
-    padding: 12px 20px !important;
-    border-radius: 14px !important;
+    background: rgba(255,255,255,0.6) !important;
+    backdrop-filter: blur(12px);
+    border: 1px solid rgba(126,162,255,0.2) !important;
+    border-top: 1px solid rgba(255,255,255,0.8) !important;
+    color: #4a4a68 !important;
+    padding: 12px 24px !important;
+    border-radius: 50px !important;
+    box-shadow: 0 4px 15px rgba(0,0,0,0.02);
 }
 .reset-btn button:hover {
-    border-color: rgba(255,45,117,0.3) !important;
-    color: #ff6b6b !important;
-    background: rgba(255,45,117,0.05) !important;
+    border-color: rgba(255,90,223,0.3) !important;
+    color: #d36cff !important;
+    background: rgba(255,255,255,0.95) !important;
+    box-shadow: 0 6px 20px rgba(126,162,255,0.08);
 }
 
 /* ── Download Button ── */
 .stDownloadButton > button {
-    background: linear-gradient(135deg, #6c3bff, #a855f7) !important;
+    background: linear-gradient(135deg, #b27cff, #69b0ff) !important;
     color: white !important;
-    border: none !important;
-    border-radius: 14px;
-    font-family: 'Space Grotesk', sans-serif;
+    border: 1px solid rgba(255,255,255,0.2) !important;
+    border-radius: 50px;
+    font-family: 'Outfit', sans-serif;
     font-weight: 700;
-    padding: 14px 20px;
-    box-shadow: 0 6px 25px rgba(108,59,255,0.3);
+    padding: 14px 28px;
+    box-shadow: 0 6px 20px rgba(105,176,255,0.25), inset 0 2px 4px rgba(255,255,255,0.3);
     transition: all 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
 }
 .stDownloadButton > button:hover {
-    box-shadow: 0 10px 35px rgba(108,59,255,0.5) !important;
+    box-shadow: 0 10px 25px rgba(105,176,255,0.35), inset 0 2px 4px rgba(255,255,255,0.4) !important;
     transform: translateY(-3px) scale(1.02);
 }
 
 /* ══════════ FRAME GALLERY BUTTONS ══════════ */
 .frame-active button {
-    background: rgba(255,45,117,0.1) !important;
-    border: 2px solid #ff2d75 !important;
-    color: #ff6b6b !important;
+    background: rgba(255,255,255,0.95) !important;
+    border: 2px solid #ff5adf !important;
+    color: #ff5adf !important;
     font-weight: 700 !important;
-    box-shadow: 0 0 20px rgba(255,45,117,0.2);
-    animation: activeGlow 2s ease-in-out infinite;
+    border-radius: 16px !important;
+    box-shadow: 0 6px 20px rgba(255,90,223,0.15);
+    animation: activeGlow 3s ease-in-out infinite;
 }
 @keyframes activeGlow {
-    0%, 100% { box-shadow: 0 0 15px rgba(255,45,117,0.15); }
-    50%      { box-shadow: 0 0 25px rgba(255,45,117,0.3); }
+    0%, 100% { box-shadow: 0 6px 15px rgba(255,90,223,0.1); }
+    50%      { box-shadow: 0 8px 25px rgba(255,90,223,0.2); }
 }
 
 .frame-inactive button {
-    background: rgba(255,255,255,0.03) !important;
-    border: 1.5px solid rgba(255,255,255,0.06) !important;
+    background: rgba(255,255,255,0.5) !important;
+    border: 1px solid rgba(126,162,255,0.2) !important;
     color: #666 !important;
     font-weight: 500 !important;
+    border-radius: 16px !important;
+    backdrop-filter: blur(12px);
 }
 .frame-inactive button:hover {
-    border-color: rgba(255,45,117,0.2) !important;
-    color: #999 !important;
-    background: rgba(255,45,117,0.04) !important;
+    border-color: rgba(255,90,223,0.3) !important;
+    color: #333 !important;
+    background: rgba(255,255,255,0.85) !important;
+    box-shadow: 0 6px 15px rgba(126,162,255,0.05);
 }
 
 /* ── No-frame placeholder ── */
 .no-frame-ph {
-    background: rgba(255,255,255,0.03);
-    border: 1.5px dashed rgba(255,255,255,0.08);
-    border-radius: 12px;
+    background: rgba(255,255,255,0.5);
+    backdrop-filter: blur(12px);
+    border: 1.5px dashed rgba(126,162,255,0.3);
+    border-radius: 16px;
     height: 70px;
     display: flex;
     align-items: center;
     justify-content: center;
     font-size: 1.5rem;
-    transition: border-color 0.3s;
+    transition: all 0.3s ease;
 }
-.no-frame-ph:hover { border-color: rgba(255,255,255,0.15); }
+.no-frame-ph:hover { 
+    border-color: rgba(255,90,223,0.4);
+    background: rgba(255,255,255,0.85);
+}
 
 /* ══════════ RESULT IMAGE ══════════ */
 .stImage img {
-    border-radius: 0px !important;
-    border: 2px solid rgba(255,255,255,0.06);
-    transition: border-color 0.3s;
+    border-radius: 24px !important;
+    border: 4px solid #ffffff;
+    box-shadow: 0 12px 30px rgba(126,162,255,0.15), 0 0 15px rgba(255,90,223,0.05);
+    transition: transform 0.4s ease;
     width: 70% !important;
     margin: 0 auto !important;
     display: block !important;
 }
 .stImage img:hover {
-    border-color: rgba(255,45,117,0.2);
+    transform: translateY(-4px);
+    box-shadow: 0 16px 35px rgba(126,162,255,0.2), 0 0 20px rgba(255,90,223,0.08);
 }
 
 /* ══════════ AI ANALYSIS CARD ══════════ */
 .ai-face-card {
-    background: rgba(255,255,255,0.03);
-    border: 1px solid rgba(255,255,255,0.06);
-    border-radius: 16px;
-    padding: 20px 24px;
-    margin-bottom: 16px;
-    transition: border-color 0.3s, transform 0.3s;
+    background: rgba(255,255,255,0.65);
+    backdrop-filter: blur(24px);
+    -webkit-backdrop-filter: blur(24px);
+    border: 1px solid rgba(255,255,255,0.5);
+    border-top: 1px solid rgba(255,255,255,0.9);
+    border-left: 1px solid rgba(255,255,255,0.7);
+    border-radius: 24px;
+    padding: 24px;
+    margin-bottom: 20px;
+    box-shadow: 0 8px 32px rgba(126,162,255,0.08), inset 0 0 0 1px rgba(255,255,255,0.3);
+    transition: all 0.4s cubic-bezier(0.34, 1.56, 0.64, 1);
 }
 .ai-face-card:hover {
-    border-color: rgba(108,59,255,0.25);
-    transform: translateY(-2px);
+    border-color: rgba(255,90,223,0.2);
+    border-top: 1px solid rgba(255,255,255,1);
+    transform: translateY(-4px);
+    box-shadow: 0 12px 40px rgba(126,162,255,0.12), 0 0 20px rgba(255,90,223,0.05);
 }
 .ai-face-label {
-    font-family: 'Space Grotesk', sans-serif;
-    font-weight: 700;
-    font-size: 1rem;
-    margin: 0 0 4px;
-    background: linear-gradient(135deg, #ff2d75, #ff6b6b);
+    font-family: 'Outfit', sans-serif;
+    font-weight: 800;
+    font-size: 1.1rem;
+    margin: 0 0 8px;
+    background: linear-gradient(135deg, #ff5adf, #7ea2ff);
     -webkit-background-clip: text;
     -webkit-text-fill-color: transparent;
 }
 
 /* ══════════ METRICS ══════════ */
 [data-testid="stMetric"] {
-    background: rgba(255,255,255,0.02);
-    border: 1px solid rgba(255,255,255,0.04);
-    border-radius: 14px;
-    padding: 16px;
+    background: rgba(255,255,255,0.7);
+    backdrop-filter: blur(16px);
+    border: 1px solid rgba(255,255,255,0.6);
+    border-top: 1px solid rgba(255,255,255,0.9);
+    border-radius: 20px;
+    padding: 16px 20px;
+    box-shadow: 0 6px 20px rgba(126,162,255,0.06);
+    transition: transform 0.3s ease;
+}
+[data-testid="stMetric"]:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 10px 25px rgba(126,162,255,0.1);
 }
 [data-testid="stMetricValue"] {
-    color: #f0f0f5 !important;
-    font-family: 'Space Grotesk', sans-serif !important;
-    font-weight: 700 !important;
+    color: #1a1a2e !important;
+    font-family: 'Outfit', sans-serif !important;
+    font-weight: 800 !important;
 }
-[data-testid="stMetricDelta"] { color: #ff6b6b !important; }
-[data-testid="stMetricLabel"] { color: #666 !important; }
+[data-testid="stMetricDelta"] { color: #ff5adf !important; }
+[data-testid="stMetricLabel"] { color: #666677 !important; font-weight: 600 !important; }
 
 /* ══════════ EXPANDER ══════════ */
 .streamlit-expanderHeader {
-    background: rgba(255,255,255,0.02) !important;
-    border: 1px solid rgba(255,255,255,0.05) !important;
-    border-radius: 12px !important;
-    color: #888 !important;
-    font-family: 'Space Grotesk', sans-serif !important;
+    background: rgba(255,255,255,0.6) !important;
+    backdrop-filter: blur(12px);
+    border: 1px solid rgba(255,255,255,0.5) !important;
+    border-top: 1px solid rgba(255,255,255,0.8) !important;
+    border-radius: 16px !important;
+    color: #4a4a68 !important;
+    font-family: 'Outfit', sans-serif !important;
+    font-weight: 600 !important;
+    box-shadow: 0 4px 15px rgba(126,162,255,0.05);
 }
 
 /* ══════════ PROGRESS BARS ══════════ */
 .stProgress > div > div {
-    background: linear-gradient(90deg, #ff2d75, #6c3bff) !important;
-    border-radius: 6px;
+    background: linear-gradient(90deg, #ff5adf, #7ea2ff) !important;
+    border-radius: 50px;
 }
 .stProgress > div {
-    background: rgba(255,255,255,0.04) !important;
-    border-radius: 6px;
+    background: rgba(126,162,255,0.15) !important;
+    border-radius: 50px;
+    box-shadow: inset 0 2px 4px rgba(0,0,0,0.02);
 }
-/* Force progress labels/values in breakdown to be clean white */
 .stProgress [data-testid="stWidgetLabel"] p {
-    color: #ffffff !important;
+    color: #1a1a2e !important;
+    font-weight: 600 !important;
 }
 
 /* ══════════ ALERTS ══════════ */
 [data-testid="stAlert"] {
-    background: rgba(255,255,255,0.03) !important;
-    border: 1px solid rgba(255,255,255,0.06) !important;
-    border-radius: 14px !important;
-    color: #888 !important;
+    background: rgba(255,255,255,0.8) !important;
+    backdrop-filter: blur(16px);
+    border: 1px solid rgba(255,90,223,0.15) !important;
+    border-left: 4px solid #ff5adf !important;
+    border-radius: 16px !important;
+    color: #4a4a68 !important;
+    box-shadow: 0 6px 20px rgba(126,162,255,0.08) !important;
 }
 
 /* ══════════ CODE BLOCK ══════════ */
 code {
-    background: rgba(255,255,255,0.04) !important;
-    color: #ff6b6b !important;
-    border: 1px solid rgba(255,255,255,0.06) !important;
-    border-radius: 10px !important;
+    background: rgba(126,162,255,0.1) !important;
+    color: #d36cff !important;
+    border: 1px solid rgba(126,162,255,0.2) !important;
+    border-radius: 8px !important;
 }
 
 /* ══════════ CAPTION ══════════ */
-.stCaption, [data-testid="stCaption"] { color: #555 !important; }
+.stCaption, [data-testid="stCaption"] { color: #666677 !important; }
 
 /* ══════════ SECTION LABEL ══════════ */
 .sec-label {
-    font-family: 'Space Grotesk', sans-serif;
-    font-size: 0.7rem;
-    font-weight: 600;
+    font-family: 'Outfit', sans-serif;
+    font-size: 0.75rem;
+    font-weight: 700;
     text-transform: uppercase;
     letter-spacing: 0.15em;
-    color: #555;
+    color: #888899;
     margin-bottom: 6px;
+    display: flex;
+    align-items: center;
+    gap: 6px;
 }
+.sec-label::before {
+    content: '✦';
+    color: #7ea2ff;
+    font-size: 0.8em;
+}
+
 .sec-title {
-    font-family: 'Space Grotesk', sans-serif;
-    font-size: 1.4rem;
-    font-weight: 700;
-    color: #f0f0f5;
-    margin-bottom: 18px;
+    font-family: 'Outfit', sans-serif;
+    font-size: 1.6rem;
+    font-weight: 800;
+    color: #1a1a2e;
+    margin-bottom: 20px;
     line-height: 1.2;
 }
 
 /* ══════════ FUN TAGLINE ══════════ */
 .tagline {
     text-align: center;
-    font-size: 0.85rem;
-    color: #555;
-    margin-top: 2px;
+    font-size: 0.95rem;
+    color: #4a4a68;
+    margin-top: 4px;
     margin-bottom: 0;
-    letter-spacing: 0.03em;
+    letter-spacing: 0.02em;
 }
 .tagline span {
-    background: linear-gradient(135deg, #ff2d75, #6c3bff);
+    background: linear-gradient(135deg, #ff5adf, #7ea2ff);
     -webkit-background-clip: text;
     -webkit-text-fill-color: transparent;
-    font-weight: 600;
+    font-weight: 700;
 }
 
 /* ── Premium Insight slide-up ── */
 @keyframes slideUp {
-    0% { opacity: 0; transform: translateY(12px); }
+    0% { opacity: 0; transform: translateY(16px); }
     100% { opacity: 1; transform: translateY(0); }
 }
 .ai-insight-card {
-    animation: slideUp 0.6s ease-out;
+    animation: slideUp 0.6s cubic-bezier(0.2, 0.8, 0.2, 1);
 }
 
-/* ══════════ FLOATING EMOJI BG ══════════ */
-.float-emoji {
+/* ══════════ FLOATING SPARKLE SVGS ══════════ */
+.sparkle-float {
     position: fixed;
-    font-size: 1.4rem;
-    opacity: 0.06;
     pointer-events: none;
     z-index: 0;
-    animation: emojiDrift 20s linear infinite;
+    opacity: 0.4;
+    animation: sparkleDrift 18s linear infinite;
+    fill: url(#sparkleGradient);
 }
-@keyframes emojiDrift {
-    0%   { transform: translateY(100vh) rotate(0deg); opacity: 0; }
-    10%  { opacity: 0.06; }
-    90%  { opacity: 0.06; }
-    100% { transform: translateY(-20vh) rotate(360deg); opacity: 0; }
+@keyframes sparkleDrift {
+    0%   { transform: translateY(100vh) rotate(0deg) scale(0.8); opacity: 0; }
+    10%  { opacity: 0.6; transform: translateY(80vh) rotate(45deg) scale(1); }
+    90%  { opacity: 0.6; transform: translateY(-10vh) rotate(315deg) scale(1); }
+    100% { transform: translateY(-20vh) rotate(360deg) scale(0.8); opacity: 0; }
 }
 
 /* ══════════ SPINNER ══════════ */
-.stSpinner > div { border-top-color: #ff2d75 !important; }
+.stSpinner > div { border-top-color: #ff5adf !important; }
 
 @keyframes flash-animation {
     0% { opacity: 0; }
@@ -459,7 +478,7 @@ code {
     left: 0;
     width: 100vw;
     height: 100vh;
-    background-color: rgba(255, 255, 255, 0.95);
+    background-color: rgba(255, 255, 255, 0.98);
     z-index: 99999;
     pointer-events: none;
     animation: flash-animation 0.4s ease-out forwards;
@@ -467,103 +486,99 @@ code {
 
 /* ── Photostrip specific additions ── */
 .strip-card {
-    border-radius: 12px;
-    border: 2.5px solid transparent;
-    padding: 8px;
+    border-radius: 20px;
+    border: 1px solid rgba(255,255,255,0.6);
+    border-top: 1px solid rgba(255,255,255,0.9);
+    padding: 10px;
     text-align: center;
-    background: rgba(255,255,255,0.03);
-    transition: all .25s ease;
+    background: rgba(255,255,255,0.6);
+    backdrop-filter: blur(16px);
+    transition: all .3s cubic-bezier(0.34, 1.56, 0.64, 1);
     cursor: pointer;
-    margin-bottom: 4px;
+    margin-bottom: 8px;
+    box-shadow: 0 6px 15px rgba(126,162,255,0.08);
 }
 .strip-card:hover {
-    border-color: rgba(255,45,117,0.3);
-    box-shadow: 0 0 10px rgba(255,45,117,0.2);
+    border-color: rgba(255,90,223,0.3);
+    box-shadow: 0 10px 25px rgba(255,90,223,0.15);
+    transform: translateY(-3px);
 }
 .strip-card.selected {
-    border-color: #ff2d75;
-    box-shadow: 0 0 18px rgba(255,45,117,0.5), inset 0 0 6px rgba(255,45,117,0.15);
+    border-color: #ff5adf;
+    box-shadow: 0 10px 25px rgba(255,90,223,0.25), inset 0 0 10px rgba(255,255,255,0.5);
+    background: rgba(255,255,255,0.9);
 }
 .countdown-text {
-    font-size: 3rem;
-    font-family: 'Space Grotesk', sans-serif;
+    font-size: 3.5rem;
+    font-family: 'Outfit', sans-serif;
     font-weight: 800;
     text-align: center;
-    background: linear-gradient(135deg, #ff2d75, #6c3bff);
+    background: linear-gradient(135deg, #ff5adf, #7ea2ff);
     -webkit-background-clip: text;
     -webkit-text-fill-color: transparent;
-    margin: 10px 0;
+    margin: 15px 0;
+    filter: drop-shadow(0 4px 8px rgba(255,90,223,0.15));
 }
 .home-card {
-    background: rgba(255,255,255,0.03);
-    border: 1px solid rgba(255,255,255,0.08);
-    border-radius: 20px;
-    padding: 40px;
+    background: rgba(255,255,255,0.65);
+    backdrop-filter: blur(24px);
+    -webkit-backdrop-filter: blur(24px);
+    border: 1px solid rgba(255,255,255,0.5);
+    border-top: 1px solid rgba(255,255,255,1);
+    border-radius: 32px;
+    padding: 48px;
     text-align: center;
-    transition: all 0.3s ease;
+    transition: all 0.4s cubic-bezier(0.34, 1.56, 0.64, 1);
     cursor: pointer;
     display: flex;
     flex-direction: column;
     align-items: center;
-    gap: 15px;
+    gap: 18px;
     height: 100%;
+    box-shadow: 0 8px 25px rgba(126,162,255,0.08), inset 0 0 0 1px rgba(255,255,255,0.4);
 }
 .home-card:hover, [data-testid="column"]:hover .home-card {
-    border-color: rgba(255,45,117,0.4);
-    box-shadow: 0 10px 40px rgba(255,45,117,0.15);
-    transform: translateY(-5px);
+    border-color: rgba(255,90,223,0.2);
+    box-shadow: 0 15px 35px rgba(211,108,255,0.15), 0 0 20px rgba(126,162,255,0.05);
+    transform: translateY(-6px);
+    background: rgba(255,255,255,0.9);
 }
 .home-card-icon {
-    font-size: 4rem;
+    font-size: 4.5rem;
+    filter: drop-shadow(0 6px 12px rgba(126,162,255,0.15));
 }
 .home-card-title {
-    font-family: 'Space Grotesk', sans-serif;
-    font-size: 1.8rem;
-    font-weight: 700;
-    color: #f0f0f5;
+    font-family: 'Outfit', sans-serif;
+    font-size: 2rem;
+    font-weight: 800;
+    color: #1a1a2e;
 }
 .home-card-desc {
-    color: #a0a0b8;
-    font-size: 1rem;
-    line-height: 1.5;
+    color: #666677;
+    font-size: 1.05rem;
+    line-height: 1.6;
+    font-weight: 500;
 }
 
 </style>
 
-<!-- Tech grid overlay -->
-<div class="tech-grid"></div>
+<!-- SVG Gradient Definition for Sparkles -->
+<svg width="0" height="0">
+  <defs>
+    <linearGradient id="sparkleGradient" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#ff5adf" />
+      <stop offset="100%" stop-color="#7ea2ff" />
+    </linearGradient>
+  </defs>
+</svg>
 
-<!-- Animated scan line -->
-<div class="scan-line"></div>
-
-<!-- Circuit trace corners -->
-<div class="circuit-corner circuit-tl">
-  <svg width="80" height="80" viewBox="0 0 80 80" fill="none">
-    <path d="M0 40 H30 L40 30 V0" stroke="#ff2d75" stroke-width="1.5" fill="none"/>
-    <path d="M0 60 H15 L25 50 V25 L35 15 H60" stroke="#6c3bff" stroke-width="1" fill="none"/>
-    <circle cx="40" cy="0" r="2" fill="#ff2d75"/>
-    <circle cx="60" cy="15" r="1.5" fill="#6c3bff"/>
-    <circle cx="0" cy="40" r="2" fill="#ff2d75"/>
-  </svg>
-</div>
-<div class="circuit-corner circuit-br">
-  <svg width="80" height="80" viewBox="0 0 80 80" fill="none">
-    <path d="M0 40 H30 L40 30 V0" stroke="#ff2d75" stroke-width="1.5" fill="none"/>
-    <path d="M0 60 H15 L25 50 V25 L35 15 H60" stroke="#6c3bff" stroke-width="1" fill="none"/>
-    <circle cx="40" cy="0" r="2" fill="#ff2d75"/>
-    <circle cx="60" cy="15" r="1.5" fill="#6c3bff"/>
-    <circle cx="0" cy="40" r="2" fill="#ff2d75"/>
-  </svg>
-</div>
-
-<!-- Floating emoji decorations -->
-<div class="float-emoji" style="left:5%;animation-duration:22s;animation-delay:0s">📸</div>
-<div class="float-emoji" style="left:15%;animation-duration:28s;animation-delay:-4s">✨</div>
-<div class="float-emoji" style="left:30%;animation-duration:25s;animation-delay:-8s">🎭</div>
-<div class="float-emoji" style="left:50%;animation-duration:20s;animation-delay:-2s">🎪</div>
-<div class="float-emoji" style="left:70%;animation-duration:26s;animation-delay:-10s">🌟</div>
-<div class="float-emoji" style="left:85%;animation-duration:23s;animation-delay:-6s">🎉</div>
-<div class="float-emoji" style="left:92%;animation-duration:30s;animation-delay:-14s">💫</div>
+<!-- Floating sparkle decorations (replaces emojis) -->
+<svg class="sparkle-float" style="left:10%;animation-duration:18s;animation-delay:0s;width:24px;height:24px" viewBox="0 0 24 24"><path d="M12 0C12 6.6 17.4 12 24 12C17.4 12 12 17.4 12 24C12 17.4 6.6 12 0 12C6.6 12 12 6.6 12 0Z"/></svg>
+<svg class="sparkle-float" style="left:25%;animation-duration:22s;animation-delay:-5s;width:16px;height:16px" viewBox="0 0 24 24"><path d="M12 0C12 6.6 17.4 12 24 12C17.4 12 12 17.4 12 24C12 17.4 6.6 12 0 12C6.6 12 12 6.6 12 0Z"/></svg>
+<svg class="sparkle-float" style="left:40%;animation-duration:20s;animation-delay:-12s;width:32px;height:32px" viewBox="0 0 24 24"><path d="M12 0C12 6.6 17.4 12 24 12C17.4 12 12 17.4 12 24C12 17.4 6.6 12 0 12C6.6 12 12 6.6 12 0Z"/></svg>
+<svg class="sparkle-float" style="left:60%;animation-duration:24s;animation-delay:-2s;width:20px;height:20px" viewBox="0 0 24 24"><path d="M12 0C12 6.6 17.4 12 24 12C17.4 12 12 17.4 12 24C12 17.4 6.6 12 0 12C6.6 12 12 6.6 12 0Z"/></svg>
+<svg class="sparkle-float" style="left:80%;animation-duration:19s;animation-delay:-8s;width:28px;height:28px" viewBox="0 0 24 24"><path d="M12 0C12 6.6 17.4 12 24 12C17.4 12 12 17.4 12 24C12 17.4 6.6 12 0 12C6.6 12 12 6.6 12 0Z"/></svg>
+<svg class="sparkle-float" style="left:90%;animation-duration:26s;animation-delay:-15s;width:18px;height:18px" viewBox="0 0 24 24"><path d="M12 0C12 6.6 17.4 12 24 12C17.4 12 12 17.4 12 24C12 17.4 6.6 12 0 12C6.6 12 12 6.6 12 0Z"/></svg>
 """, unsafe_allow_html=True)
 components.html("""
 <script>
@@ -873,8 +888,8 @@ def generate_share_page(image_url: str, file_name: str, analysis_url: str = None
 <style>
 *{margin:0;padding:0;box-sizing:border-box;}
 body{
-  background:#08080d;color:#f5f5f7;
-  font-family:'Space Grotesk',sans-serif;
+  background:#08080d;color:#1a1a2e;
+  font-family:'Outfit',sans-serif;
   min-height:100vh;display:flex;flex-direction:column;
   align-items:center;overflow-x:hidden;
 }
@@ -906,7 +921,7 @@ body::after{
 .header{text-align:center;}
 .header h1{
   font-size:2rem;font-weight:800;letter-spacing:-0.04em;
-  background:linear-gradient(135deg,#ff2d75,#ff6b6b,#6c3bff);
+  background:linear-gradient(135deg,#ff2d75,#ff5adf,#6c3bff);
   -webkit-background-clip:text;-webkit-text-fill-color:transparent;
   filter:drop-shadow(0 0 22px rgba(255,45,117,0.3));
   margin-bottom:5px;
@@ -921,7 +936,7 @@ body::after{
   width:100%;position:relative;
   border-radius:20px;overflow:hidden;
   box-shadow:0 0 60px rgba(255,45,117,0.12),0 24px 64px rgba(0,0,0,0.55);
-  border:1.5px solid rgba(255,255,255,0.08);
+  border:1.5px solid rgba(126,162,255,0.3);
 }
 .photo-wrap img{width:100%;display:block;}
 .badge{
@@ -929,12 +944,12 @@ body::after{
   background:rgba(8,8,13,0.82);backdrop-filter:blur(12px);
   border:1px solid rgba(255,45,117,0.35);border-radius:20px;
   padding:4px 12px;font-size:0.64rem;font-weight:700;
-  color:#ff6b6b;letter-spacing:0.12em;text-transform:uppercase;
+  color:#ff5adf;letter-spacing:0.12em;text-transform:uppercase;
 }
 .btn-group{width:100%;display:flex;flex-direction:column;gap:12px;}
 .btn{
   width:100%;padding:17px 24px;border-radius:16px;border:none;
-  font-family:'Space Grotesk',sans-serif;font-size:1rem;font-weight:700;
+  font-family:'Outfit',sans-serif;font-size:1rem;font-weight:700;
   cursor:pointer;display:flex;align-items:center;justify-content:center;
   gap:10px;transition:all 0.3s cubic-bezier(0.34,1.56,0.64,1);
   color:white;text-decoration:none;
@@ -946,12 +961,12 @@ body::after{
   100%{background-position:0% 50%;}
 }
 .btn-share{
-  background:linear-gradient(135deg,#ff2d75,#ff6b6b,#ff2d75);
+  background:linear-gradient(135deg,#ff2d75,#ff5adf,#ff2d75);
   background-size:200% 200%;animation:shimmer 3s ease infinite;
   box-shadow:0 8px 32px rgba(255,45,117,0.4);
 }
 .btn-dl{
-  background:linear-gradient(135deg,#6c3bff,#a855f7);
+  background:linear-gradient(135deg,#6c3bff,#b27cff);
   box-shadow:0 8px 32px rgba(108,59,255,0.4);
 }
 .divider{
@@ -971,7 +986,7 @@ body::after{
   padding:14px 8px;border-radius:14px;
   border:1.5px solid rgba(255,255,255,0.06);
   background:rgba(255,255,255,0.025);
-  color:#777;font-family:'Space Grotesk',sans-serif;
+  color:#777;font-family:'Outfit',sans-serif;
   font-size:0.7rem;font-weight:600;cursor:pointer;
   display:flex;flex-direction:column;align-items:center;gap:5px;
   text-decoration:none;transition:all 0.2s ease;
@@ -988,8 +1003,8 @@ body::after{
 }
 .toast{
   position:fixed;bottom:28px;left:50%;transform:translateX(-50%);
-  background:rgba(255,255,255,0.08);backdrop-filter:blur(20px);
-  border:1px solid rgba(255,255,255,0.1);color:#f5f5f7;
+  background:rgba(126,162,255,0.3);backdrop-filter:blur(20px);
+  border:1px solid rgba(255,255,255,0.1);color:#1a1a2e;
   padding:12px 26px;border-radius:40px;
   font-size:0.85rem;font-weight:600;
   opacity:0;transition:opacity 0.35s;z-index:999;
@@ -1527,17 +1542,17 @@ def render_home_page():
     st.markdown(
         "<div style='text-align:center; padding-top: 10px;'>"
         "<h1 style='"
-        "font-family:Space Grotesk,sans-serif;"
+        "font-family:Outfit,sans-serif;"
         "font-size:3.5rem;font-weight:800;margin-bottom:0;"
         "letter-spacing:-0.04em;"
-        "background:linear-gradient(135deg,#ff2d75 0%,#ff6b6b 40%,#6c3bff 100%);"
+        "background:linear-gradient(135deg,#ff2d75 0%,#ff5adf 40%,#6c3bff 100%);"
         "-webkit-background-clip:text;-webkit-text-fill-color:transparent;"
-        "filter:drop-shadow(0 0 25px rgba(255,45,117,0.2));'>"
+        "filter:drop-shadow(0 0 25px rgba(255,90,223,0.2));'>"
         "AI Photo Booth</h1>"
-        "<p style='font-size:1.2rem; color:#a0a0b8; margin-top:5px; font-weight:500; font-family:Space Grotesk, sans-serif;'>"
-        "AWS Student Builder Group, DBIT &nbsp;&bull;&nbsp; <span style='color:#ff6b6b;'>Vignanotsava 2k26</span>"
+        "<p style='font-size:1.2rem; color:#666677; margin-top:5px; font-weight:500; font-family:Outfit, sans-serif;'>"
+        "AWS Student Builder Group, DBIT &nbsp;&bull;&nbsp; <span style='color:#ff5adf;'>Vignanotsava 2k26</span>"
         "</p>"
-        "<p style='font-size:0.9rem; color:#555; margin-top:4px; font-family:DM Sans, sans-serif;'>"
+        "<p style='font-size:0.9rem; color:#555; margin-top:4px; font-family:Plus Jakarta Sans, sans-serif;'>"
         "Crafted by <span style='background:linear-gradient(135deg,#ff2d75,#6c3bff);-webkit-background-clip:text;-webkit-text-fill-color:transparent;font-weight:600;'>Ankitha Jade</span>"
         " and <span style='background:linear-gradient(135deg,#ff2d75,#6c3bff);-webkit-background-clip:text;-webkit-text-fill-color:transparent;font-weight:600;'>Sadhana S</span>"
         "</p>"
@@ -1626,12 +1641,12 @@ def render_photobooth_page():
         with hdr_r:
             st.markdown(
                 "<h1 style='"
-                "font-family:Space Grotesk,sans-serif;"
+                "font-family:Outfit,sans-serif;"
                 "font-size:2.2rem;font-weight:800;margin:0;"
                 "letter-spacing:-0.04em;"
-                "background:linear-gradient(135deg,#ff2d75 0%,#ff6b6b 40%,#6c3bff 100%);"
+                "background:linear-gradient(135deg,#ff2d75 0%,#ff5adf 40%,#6c3bff 100%);"
                 "-webkit-background-clip:text;-webkit-text-fill-color:transparent;"
-                "filter:drop-shadow(0 0 25px rgba(255,45,117,0.2));'>"
+                "filter:drop-shadow(0 0 25px rgba(255,90,223,0.2));'>"
                 "AI Photo Booth</h1>"
                 "<p class='tagline' style='margin:2px 0 0;'>"
                 "Crafted by <span>Ankitha Jade</span> and <span>Sadhana S</span>"
@@ -1667,7 +1682,7 @@ def render_photobooth_page():
         # ── LEFT: live camera + capture button ──────────────────────────────────
         with left:
             st.markdown("<p class='sec-label'>Live Camera</p>", unsafe_allow_html=True)
-            st.markdown("<p class='sec-title'>📸 Strike a Pose!</p>", unsafe_allow_html=True)
+            st.markdown("<p class='sec-title'>📸 Snap a Pic!</p>", unsafe_allow_html=True)
     
             ctx = webrtc_streamer(
                 key=f"booth_{st.session_state.camera_run_id}",
@@ -1893,12 +1908,12 @@ def render_photobooth_page():
         with left:
             st.markdown(
                 "<h1 style='text-align:left;"
-                "font-family:Space Grotesk,sans-serif;"
+                "font-family:Outfit,sans-serif;"
                 "font-size:2.4rem;font-weight:800;margin-bottom:0;"
                 "letter-spacing:-0.04em;"
-                "background:linear-gradient(135deg,#ff2d75 0%,#ff6b6b 40%,#6c3bff 100%);"
+                "background:linear-gradient(135deg,#ff2d75 0%,#ff5adf 40%,#6c3bff 100%);"
                 "-webkit-background-clip:text;-webkit-text-fill-color:transparent;"
-                "filter:drop-shadow(0 0 25px rgba(255,45,117,0.2));'>"
+                "filter:drop-shadow(0 0 25px rgba(255,90,223,0.2));'>"
                 "AI Photo Booth</h1>",
                 unsafe_allow_html=True,
             )
@@ -1937,7 +1952,7 @@ def render_photobooth_page():
     
             # ── AI Analysis ────────────────────────────────────────────────
             st.markdown("<p class='sec-label'>AI Insights</p>", unsafe_allow_html=True)
-            st.markdown("<p class='sec-title'>🤖 Here's What AI Sees</p>", unsafe_allow_html=True)
+            st.markdown("<p class='sec-title'>✨ AI Snapshot</p>", unsafe_allow_html=True)
     
             faces = st.session_state.rek_faces
     
@@ -1949,14 +1964,14 @@ def render_photobooth_page():
                 # ═════════════════════════════════════════════════════════════════
                 if len(faces) >= 2:
                     # 1. Team Vibe & QR Code Side-by-Side
-                    st.markdown("<p class='sec-label'>Team Chemistry & Share</p>", unsafe_allow_html=True)
+                    st.markdown("<p class='sec-label'>✨ Team Vibe</p>", unsafe_allow_html=True)
                     vibe_col, qr_col = st.columns([3, 2], gap="medium")
                     with vibe_col:
                         group_vibe = st.session_state.group_vibe
                         st.markdown(
-                            f"<div class='ai-face-card' style='background: linear-gradient(135deg, rgba(108,59,255,0.08), rgba(255,45,117,0.08)); border-color: rgba(108,59,255,0.25); text-align: center; height: 130px; display: flex; flex-direction: column; justify-content: center; align-items: center; margin-bottom: 0px; padding: 15px; box-sizing: border-box;'>"
-                            f"<p class='sec-label' style='color: #a855f7; margin-bottom: 4px; font-size: 0.65rem; text-transform: uppercase;'>Team Vibe</p>"
-                            f"<h4 style='margin: 0; font-family: \"Space Grotesk\", sans-serif; font-weight: 700; color: #f0f0f5; font-size: 1.1rem;'>✨ {group_vibe}</h4>"
+                            f"<div class='ai-face-card' style='background: linear-gradient(135deg, rgba(126,162,255,0.1), rgba(255,90,223,0.1)); border-color: rgba(126,162,255,0.3); text-align: center; height: 130px; display: flex; flex-direction: column; justify-content: center; align-items: center; margin-bottom: 0px; padding: 15px; box-sizing: border-box;'>"
+                            f"<p class='sec-label' style='color: #7ea2ff; margin-bottom: 4px; font-size: 0.65rem; text-transform: uppercase;'>Team Vibe</p>"
+                            f"<h4 style='margin: 0; font-family: \"Outfit\", sans-serif; font-weight: 800; color: #1a1a2e; font-size: 1.1rem;'>✨ {group_vibe}</h4>"
                             f"</div>",
                             unsafe_allow_html=True
                         )
@@ -1969,7 +1984,7 @@ def render_photobooth_page():
                             qr_b64 = base64.b64encode(qr_buf.getvalue()).decode("utf-8")
                             st.markdown(
                                 f"<div style='display: flex; align-items: center; justify-content: center; height: 130px; box-sizing: border-box;'>"
-                                f"<img src='data:image/png;base64,{qr_b64}' style='width: 130px; height: 130px; border-radius: 12px; border: 1.5px solid rgba(255,255,255,0.08);' />"
+                                f"<img src='data:image/png;base64,{qr_b64}' style='width: 130px; height: 130px; border-radius: 12px; border: 1.5px solid rgba(126,162,255,0.3);' />"
                                 f"</div>",
                                 unsafe_allow_html=True
                             )
@@ -2014,25 +2029,25 @@ def render_photobooth_page():
                             f"<div style='display: flex; justify-content: space-between; align-items: center; margin-bottom: 4px;'>"
                             f"<p class='ai-face-label' style='margin: 0;'>{p1_emoji} Person 1</p>"
                             f"<div style='display: flex; gap: 4px; align-items: center; flex-wrap: wrap;'>"
-                            f"<span style='background: rgba(255,45,117,0.15); color: #ff6b6b; padding: 2px 6px; border-radius: 6px; font-size: 0.72rem; font-weight: 600; font-family: \"Space Grotesk\"; border: 1px solid rgba(255,45,117,0.2);'>{p1_age_range}</span>"
-                            f"<span style='background: rgba(108,59,255,0.15); color: #a855f7; padding: 2px 6px; border-radius: 6px; font-size: 0.72rem; font-weight: 600; font-family: \"Space Grotesk\"; border: 1px solid rgba(108,59,255,0.2);'>{p1_emoji} {p1_emotion_type.capitalize()}</span>"
+                            f"<span style='background: rgba(255,90,223,0.15); color: #d36cff; padding: 2px 6px; border-radius: 6px; font-size: 0.72rem; font-weight: 700; font-family: \"Outfit\"; border: 1px solid rgba(255,90,223,0.2);'>{p1_age_range}</span>"
+                            f"<span style='background: rgba(126,162,255,0.15); color: #b27cff; padding: 2px 6px; border-radius: 6px; font-size: 0.72rem; font-weight: 600; font-family: \"Outfit\"; border: 1px solid rgba(126,162,255,0.2);'>{p1_emoji} {p1_emotion_type.capitalize()}</span>"
                             f"</div>"
                             f"</div>"
-                            f"<p style='margin: 6px 0 0; font-size: 0.8rem; color: #a0a0b8; font-style: italic;'>\"{p1_caption}\"</p>"
+                            f"<p style='margin: 6px 0 0; font-size: 0.8rem; color: #666677; font-style: italic;'>\"{p1_caption}\"</p>"
                             f"</div>",
                             unsafe_allow_html=True,
                         )
     
                         st.markdown(
-                            f"<div class='ai-insight-card' style='background: linear-gradient(135deg, rgba(255,45,117,0.05), rgba(108,59,255,0.05)); border: 1px solid rgba(255,45,117,0.15); border-radius: 12px; padding: 10px; margin-bottom: 10px; text-align: center;'>"
-                            f"<p style='font-family: \"Space Grotesk\", sans-serif; font-size: 0.65rem; text-transform: uppercase; letter-spacing: 0.1em; color: #ff6b6b; margin: 0 0 2px 0;'>AI Persona</p>"
-                            f"<h3 style='font-family: \"Space Grotesk\", sans-serif; font-size: 0.95rem; font-weight: 700; background: linear-gradient(135deg, #00d4ff, #7b2fff, #e044ab); -webkit-background-clip: text; -webkit-text-fill-color: transparent; margin: 0;'>{p1_personality}</h3>"
+                            f"<div class='ai-insight-card' style='background: linear-gradient(135deg, rgba(255,90,223,0.05), rgba(126,162,255,0.05)); border: 1px solid rgba(255,90,223,0.15); border-radius: 12px; padding: 10px; margin-bottom: 10px; text-align: center;'>"
+                            f"<p style='font-family: \"Outfit\", sans-serif; font-size: 0.65rem; text-transform: uppercase; letter-spacing: 0.1em; color: #ff5adf; margin: 0 0 2px 0;'>AI Persona</p>"
+                            f"<h3 style='font-family: \"Outfit\", sans-serif; font-size: 0.95rem; font-weight: 700; background: linear-gradient(135deg, #d36cff, #7b2fff, #e044ab); -webkit-background-clip: text; -webkit-text-fill-color: transparent; margin: 0;'>{p1_personality}</h3>"
                             f"</div>",
                             unsafe_allow_html=True,
                         )
     
                         p1_badge_html = "".join([
-                            f"<span style='background: rgba(108,59,255,0.12); color: #a855f7; border: 1px solid rgba(108,59,255,0.2); padding: 3px 8px; border-radius: 20px; font-size: 0.65rem; font-weight: 600; font-family: \"DM Sans\";'>{badge}</span>"
+                            f"<span style='background: rgba(126,162,255,0.12); color: #b27cff; border: 1px solid rgba(126,162,255,0.2); padding: 3px 8px; border-radius: 20px; font-size: 0.65rem; font-weight: 600; font-family: \"Plus Jakarta Sans\";'>{badge}</span>"
                             for badge in p1_badges
                         ])
                         st.markdown(
@@ -2043,8 +2058,8 @@ def render_photobooth_page():
                         for label, val in p1_vibes.items():
                             st.markdown(
                                 f"<div style='display: flex; justify-content: space-between; font-size: 0.72rem; margin-bottom: 1px;'>"
-                                f"<span style='color: #888; font-weight: 500;'>{label}</span>"
-                                f"<span style='color: #00d4ff; font-weight: 600; font-family: Space Grotesk;'>{val}</span>"
+                                f"<span style='color: #4a4a68; font-weight: 500;'>{label}</span>"
+                                f"<span style='color: #d36cff; font-weight: 600; font-family: Outfit;'>{val}</span>"
                                 f"</div>",
                                 unsafe_allow_html=True
                             )
@@ -2068,9 +2083,9 @@ def render_photobooth_page():
                                 key=lambda x: x["Confidence"], reverse=True,
                             ):
                                 st.markdown(
-                                    f"<span style='color:#f5f5f7; font-size:0.78rem; font-weight:600; "
-                                    f"font-family:\"Space Grotesk\", sans-serif;'>"
-                                    f"{e['Type'].capitalize()} &nbsp;<span style='color:#a0a0b8; font-weight:400;'>({e['Confidence']:.1f}%)</span></span>",
+                                    f"<span style='color:#1a1a2e; font-size:0.78rem; font-weight:600; "
+                                    f"font-family:\"Outfit\", sans-serif;'>"
+                                    f"{e['Type'].capitalize()} &nbsp;<span style='color:#666677; font-weight:400;'>({e['Confidence']:.1f}%)</span></span>",
                                     unsafe_allow_html=True
                                 )
                                 st.progress(min(int(e["Confidence"]), 100))
@@ -2081,25 +2096,25 @@ def render_photobooth_page():
                             f"<div style='display: flex; justify-content: space-between; align-items: center; margin-bottom: 4px;'>"
                             f"<p class='ai-face-label' style='margin: 0;'>{p2_emoji} Person 2</p>"
                             f"<div style='display: flex; gap: 4px; align-items: center; flex-wrap: wrap;'>"
-                            f"<span style='background: rgba(255,45,117,0.15); color: #ff6b6b; padding: 2px 6px; border-radius: 6px; font-size: 0.72rem; font-weight: 600; font-family: \"Space Grotesk\"; border: 1px solid rgba(255,45,117,0.2);'>{p2_age_range}</span>"
-                            f"<span style='background: rgba(108,59,255,0.15); color: #a855f7; padding: 2px 6px; border-radius: 6px; font-size: 0.72rem; font-weight: 600; font-family: \"Space Grotesk\"; border: 1px solid rgba(108,59,255,0.2);'>{p2_emoji} {p2_emotion_type.capitalize()}</span>"
+                            f"<span style='background: rgba(255,90,223,0.15); color: #ff5adf; padding: 2px 6px; border-radius: 6px; font-size: 0.72rem; font-weight: 600; font-family: \"Outfit\"; border: 1px solid rgba(255,90,223,0.2);'>{p2_age_range}</span>"
+                            f"<span style='background: rgba(126,162,255,0.15); color: #b27cff; padding: 2px 6px; border-radius: 6px; font-size: 0.72rem; font-weight: 600; font-family: \"Outfit\"; border: 1px solid rgba(126,162,255,0.2);'>{p2_emoji} {p2_emotion_type.capitalize()}</span>"
                             f"</div>"
                             f"</div>"
-                            f"<p style='margin: 6px 0 0; font-size: 0.8rem; color: #a0a0b8; font-style: italic;'>\"{p2_caption}\"</p>"
+                            f"<p style='margin: 6px 0 0; font-size: 0.8rem; color: #666677; font-style: italic;'>\"{p2_caption}\"</p>"
                             f"</div>",
                             unsafe_allow_html=True,
                         )
     
                         st.markdown(
-                            f"<div class='ai-insight-card' style='background: linear-gradient(135deg, rgba(255,45,117,0.05), rgba(108,59,255,0.05)); border: 1px solid rgba(255,45,117,0.15); border-radius: 12px; padding: 10px; margin-bottom: 10px; text-align: center;'>"
-                            f"<p style='font-family: \"Space Grotesk\", sans-serif; font-size: 0.65rem; text-transform: uppercase; letter-spacing: 0.1em; color: #ff6b6b; margin: 0 0 2px 0;'>AI Persona</p>"
-                            f"<h3 style='font-family: \"Space Grotesk\", sans-serif; font-size: 0.95rem; font-weight: 700; background: linear-gradient(135deg, #00d4ff, #7b2fff, #e044ab); -webkit-background-clip: text; -webkit-text-fill-color: transparent; margin: 0;'>{p2_personality}</h3>"
+                            f"<div class='ai-insight-card' style='background: linear-gradient(135deg, rgba(255,90,223,0.05), rgba(126,162,255,0.05)); border: 1px solid rgba(255,90,223,0.15); border-radius: 12px; padding: 10px; margin-bottom: 10px; text-align: center;'>"
+                            f"<p style='font-family: \"Outfit\", sans-serif; font-size: 0.65rem; text-transform: uppercase; letter-spacing: 0.1em; color: #ff5adf; margin: 0 0 2px 0;'>AI Persona</p>"
+                            f"<h3 style='font-family: \"Outfit\", sans-serif; font-size: 0.95rem; font-weight: 700; background: linear-gradient(135deg, #d36cff, #7b2fff, #e044ab); -webkit-background-clip: text; -webkit-text-fill-color: transparent; margin: 0;'>{p2_personality}</h3>"
                             f"</div>",
                             unsafe_allow_html=True,
                         )
     
                         p2_badge_html = "".join([
-                            f"<span style='background: rgba(108,59,255,0.12); color: #a855f7; border: 1px solid rgba(108,59,255,0.2); padding: 3px 8px; border-radius: 20px; font-size: 0.65rem; font-weight: 600; font-family: \"DM Sans\";'>{badge}</span>"
+                            f"<span style='background: rgba(126,162,255,0.12); color: #b27cff; border: 1px solid rgba(126,162,255,0.2); padding: 3px 8px; border-radius: 20px; font-size: 0.65rem; font-weight: 600; font-family: \"Plus Jakarta Sans\";'>{badge}</span>"
                             for badge in p2_badges
                         ])
                         st.markdown(
@@ -2110,8 +2125,8 @@ def render_photobooth_page():
                         for label, val in p2_vibes.items():
                             st.markdown(
                                 f"<div style='display: flex; justify-content: space-between; font-size: 0.72rem; margin-bottom: 1px;'>"
-                                f"<span style='color: #888; font-weight: 500;'>{label}</span>"
-                                f"<span style='color: #00d4ff; font-weight: 600; font-family: Space Grotesk;'>{val}</span>"
+                                f"<span style='color: #4a4a68; font-weight: 500;'>{label}</span>"
+                                f"<span style='color: #d36cff; font-weight: 600; font-family: Outfit;'>{val}</span>"
                                 f"</div>",
                                 unsafe_allow_html=True
                             )
@@ -2135,9 +2150,9 @@ def render_photobooth_page():
                                 key=lambda x: x["Confidence"], reverse=True,
                             ):
                                 st.markdown(
-                                    f"<span style='color:#f5f5f7; font-size:0.78rem; font-weight:600; "
-                                    f"font-family:\"Space Grotesk\", sans-serif;'>"
-                                    f"{e['Type'].capitalize()} &nbsp;<span style='color:#a0a0b8; font-weight:400;'>({e['Confidence']:.1f}%)</span></span>",
+                                    f"<span style='color:#1a1a2e; font-size:0.78rem; font-weight:600; "
+                                    f"font-family:\"Outfit\", sans-serif;'>"
+                                    f"{e['Type'].capitalize()} &nbsp;<span style='color:#666677; font-weight:400;'>({e['Confidence']:.1f}%)</span></span>",
                                     unsafe_allow_html=True
                                 )
                                 st.progress(min(int(e["Confidence"]), 100))
@@ -2169,11 +2184,11 @@ def render_photobooth_page():
                         f"<div style='display: flex; justify-content: space-between; align-items: center; margin-bottom: 4px;'>"
                         f"<p class='ai-face-label' style='margin: 0;'>{emotion_emoji} Detected Face</p>"
                         f"<div style='display: flex; gap: 6px; align-items: center;'>"
-                        f"<span style='background: rgba(255,45,117,0.15); color: #ff6b6b; padding: 4px 10px; border-radius: 8px; font-size: 0.8rem; font-weight: 600; font-family: \"Space Grotesk\"; border: 1px solid rgba(255,45,117,0.2);'>{age_range}</span>"
-                        f"<span style='background: rgba(108,59,255,0.15); color: #a855f7; padding: 4px 10px; border-radius: 8px; font-size: 0.8rem; font-weight: 600; font-family: \"Space Grotesk\"; border: 1px solid rgba(108,59,255,0.2);'>{emotion_emoji} {emotion_type.capitalize()}</span>"
+                        f"<span style='background: rgba(255,90,223,0.15); color: #ff5adf; padding: 4px 10px; border-radius: 8px; font-size: 0.8rem; font-weight: 600; font-family: \"Outfit\"; border: 1px solid rgba(255,90,223,0.2);'>{age_range}</span>"
+                        f"<span style='background: rgba(126,162,255,0.15); color: #b27cff; padding: 4px 10px; border-radius: 8px; font-size: 0.8rem; font-weight: 600; font-family: \"Outfit\"; border: 1px solid rgba(126,162,255,0.2);'>{emotion_emoji} {emotion_type.capitalize()}</span>"
                         f"</div>"
                         f"</div>"
-                        f"<p style='margin: 6px 0 0; font-size: 0.85rem; color: #a0a0b8; font-style: italic;'>\"{caption}\"</p>"
+                        f"<p style='margin: 6px 0 0; font-size: 0.85rem; color: #666677; font-style: italic;'>\"{caption}\"</p>"
                         f"</div>",
                         unsafe_allow_html=True,
                     )
@@ -2182,14 +2197,14 @@ def render_photobooth_page():
                     persona_col, qr_col = st.columns([3, 2], gap="medium")
                     with persona_col:
                         st.markdown(
-                            f"<div class='ai-insight-card' style='background: linear-gradient(135deg, rgba(255,45,117,0.05), rgba(108,59,255,0.05)); border: 1px solid rgba(255,45,117,0.15); border-radius: 12px; padding: 12px; text-align: center; margin-bottom: 8px;'>"
-                            f"<p style='font-family: \"Space Grotesk\", sans-serif; font-size: 0.7rem; text-transform: uppercase; letter-spacing: 0.1em; color: #ff6b6b; margin: 0 0 4px 0;'>AI Persona</p>"
-                            f"<h3 style='font-family: \"Space Grotesk\", sans-serif; font-size: 1.1rem; font-weight: 700; background: linear-gradient(135deg, #00d4ff, #7b2fff, #e044ab); -webkit-background-clip: text; -webkit-text-fill-color: transparent; margin: 0;'>{personality}</h3>"
+                            f"<div class='ai-insight-card' style='background: linear-gradient(135deg, rgba(255,90,223,0.05), rgba(126,162,255,0.05)); border: 1px solid rgba(255,90,223,0.15); border-radius: 12px; padding: 12px; text-align: center; margin-bottom: 8px;'>"
+                            f"<p style='font-family: \"Outfit\", sans-serif; font-size: 0.7rem; text-transform: uppercase; letter-spacing: 0.1em; color: #ff5adf; margin: 0 0 4px 0;'>AI Persona</p>"
+                            f"<h3 style='font-family: \"Outfit\", sans-serif; font-size: 1.1rem; font-weight: 700; background: linear-gradient(135deg, #d36cff, #7b2fff, #e044ab); -webkit-background-clip: text; -webkit-text-fill-color: transparent; margin: 0;'>{personality}</h3>"
                             f"</div>",
                             unsafe_allow_html=True,
                         )
                         badge_html = "".join([
-                            f"<span style='background: rgba(108,59,255,0.12); color: #a855f7; border: 1px solid rgba(108,59,255,0.2); padding: 4px 10px; border-radius: 20px; font-size: 0.72rem; font-weight: 600; font-family: \"DM Sans\";'>{badge}</span>"
+                            f"<span style='background: rgba(126,162,255,0.12); color: #b27cff; border: 1px solid rgba(126,162,255,0.2); padding: 4px 10px; border-radius: 20px; font-size: 0.72rem; font-weight: 600; font-family: \"Plus Jakarta Sans\";'>{badge}</span>"
                             for badge in badges
                         ])
                         st.markdown(
@@ -2205,7 +2220,7 @@ def render_photobooth_page():
                             qr_b64 = base64.b64encode(qr_buf.getvalue()).decode("utf-8")
                             st.markdown(
                                 f"<div style='display: flex; align-items: center; justify-content: center; height: 100%; min-height: 120px; box-sizing: border-box;'>"
-                                f"<img src='data:image/png;base64,{qr_b64}' style='width: 115px; height: 115px; border-radius: 12px; border: 1.5px solid rgba(255,255,255,0.08);' />"
+                                f"<img src='data:image/png;base64,{qr_b64}' style='width: 115px; height: 115px; border-radius: 12px; border: 1.5px solid rgba(126,162,255,0.3);' />"
                                 f"</div>",
                                 unsafe_allow_html=True
                             )
@@ -2213,12 +2228,12 @@ def render_photobooth_page():
                             st.info("Photo URL not available.")
     
                     # 4. Gaming-style vibe statistics
-                    st.markdown("<p style='font-family: \"Space Grotesk\", sans-serif; font-size: 0.68rem; text-transform: uppercase; letter-spacing: 0.1em; color: #666; margin: 0 0 6px 0; text-align: center;'>Vibe Statistics</p>", unsafe_allow_html=True)
+                    st.markdown("<p style='font-family: \"Outfit\", sans-serif; font-size: 0.68rem; text-transform: uppercase; letter-spacing: 0.1em; color: #666677; margin: 0 0 6px 0; text-align: center;'>Vibe Statistics</p>", unsafe_allow_html=True)
                     for label, val in vibes.items():
                         st.markdown(
                             f"<div style='display: flex; justify-content: space-between; font-size: 0.76rem; margin-bottom: 1px;'>"
-                            f"<span style='color: #888; font-weight: 500;'>{label}</span>"
-                            f"<span style='color: #00d4ff; font-weight: 600; font-family: Space Grotesk;'>{val}</span>"
+                            f"<span style='color: #4a4a68; font-weight: 500;'>{label}</span>"
+                            f"<span style='color: #d36cff; font-weight: 600; font-family: Outfit;'>{val}</span>"
                             f"</div>",
                             unsafe_allow_html=True
                         )
@@ -2241,9 +2256,9 @@ def render_photobooth_page():
                             key=lambda x: x["Confidence"], reverse=True,
                         ):
                             st.markdown(
-                                f"<span style='color:#f5f5f7; font-size:0.78rem; font-weight:600; "
-                                f"font-family:\"Space Grotesk\", sans-serif;'>"
-                                f"{e['Type'].capitalize()} &nbsp;<span style='color:#a0a0b8; font-weight:400;'>({e['Confidence']:.1f}%)</span></span>",
+                                f"<span style='color:#1a1a2e; font-size:0.78rem; font-weight:600; "
+                                f"font-family:\"Outfit\", sans-serif;'>"
+                                f"{e['Type'].capitalize()} &nbsp;<span style='color:#666677; font-weight:400;'>({e['Confidence']:.1f}%)</span></span>",
                                 unsafe_allow_html=True
                             )
                             st.progress(min(int(e["Confidence"]), 100))
@@ -2260,14 +2275,14 @@ def render_photostrip_page():
     with hdr_r:
         st.markdown(
             "<h1 style='"
-            "font-family:Space Grotesk,sans-serif;"
+            "font-family:Outfit,sans-serif;"
             "font-size:2.2rem;font-weight:800;margin:0;"
             "letter-spacing:-0.04em;"
-            "background:linear-gradient(135deg,#ff2d75 0%,#ff6b6b 40%,#6c3bff 100%);"
+            "background:linear-gradient(135deg,#ff2d75 0%,#ff5adf 40%,#6c3bff 100%);"
             "-webkit-background-clip:text;-webkit-text-fill-color:transparent;"
-            "filter:drop-shadow(0 0 25px rgba(255,45,117,0.2));'>"
+            "filter:drop-shadow(0 0 25px rgba(255,90,223,0.2));'>"
             "Photostrip Booth</h1>"
-            "<p style='color:#555;margin-top:4px;font-size:.9rem;font-family:DM Sans,sans-serif;'>"
+            "<p style='color:#555;margin-top:4px;font-size:.9rem;font-family:Plus Jakarta Sans,sans-serif;'>"
             "Crafted by <span style='background:linear-gradient(135deg,#ff2d75,#6c3bff);-webkit-background-clip:text;-webkit-text-fill-color:transparent;font-weight:600;'>Ankitha Jade</span>"
             " and <span style='background:linear-gradient(135deg,#ff2d75,#6c3bff);-webkit-background-clip:text;-webkit-text-fill-color:transparent;font-weight:600;'>Sadhana S</span></p>",
             unsafe_allow_html=True,
@@ -2472,7 +2487,7 @@ def render_photostrip_page():
                 qr_b64 = base64.b64encode(qr_buf.getvalue()).decode("utf-8")
                 st.markdown(
                     f"<div style='display: flex; align-items: center; justify-content: center; height: 300px; box-sizing: border-box;'>"
-                    f"<img src='data:image/png;base64,{qr_b64}' style='width: 280px; height: 280px; border-radius: 12px; border: 2px solid rgba(255,45,117,0.3); box-shadow: 0 0 20px rgba(255,45,117,0.15);' />"
+                    f"<img src='data:image/png;base64,{qr_b64}' style='width: 280px; height: 280px; border-radius: 12px; border: 2px solid rgba(255,45,117,0.3); box-shadow: 0 0 20px rgba(255,90,223,0.15);' />"
                     f"</div>",
                     unsafe_allow_html=True
                 )
