@@ -507,7 +507,7 @@ code {
     gap: 15px;
     height: 100%;
 }
-.home-card:hover {
+.home-card:hover, [data-testid="column"]:hover .home-card {
     border-color: rgba(255,45,117,0.4);
     box-shadow: 0 10px 40px rgba(255,45,117,0.15);
     transform: translateY(-5px);
@@ -1472,7 +1472,7 @@ def render_home_page():
     with col2:
         pb_clicked = st.button("Enter Photobooth", key="btn_go_pb", type="primary", use_container_width=True)
         st.markdown(
-            "<div class='home-card' style='margin-top:-42px;'>"
+            "<div class='home-card'>"
             "<div class='home-card-icon'>&#128247;</div>"
             "<div class='home-card-title'>Photobooth</div>"
             "<div class='home-card-desc'>Single frame capture with AI Personality Analysis, Vibe Check, and custom event frames.</div>"
@@ -1486,7 +1486,7 @@ def render_home_page():
     with col3:
         ps_clicked = st.button("Enter Photostrip", key="btn_go_ps", type="primary", use_container_width=True)
         st.markdown(
-            "<div class='home-card' style='margin-top:-42px;'>"
+            "<div class='home-card'>"
             "<div class='home-card-icon'>&#127902;</div>"
             "<div class='home-card-title'>Photostrip</div>"
             "<div class='home-card-desc'>Classic 4-photo strip capture with vintage/B&amp;W filters and printable layouts.</div>"
@@ -1496,6 +1496,42 @@ def render_home_page():
         if ps_clicked:
             st.session_state.app_page = "photostrip"
             st.rerun()
+
+    # Hide the Streamlit buttons but keep them clickable via JS
+    st.markdown("""
+        <style>
+        div[data-testid="column"] div.stButton,
+        div[data-testid="column"] button {
+            position: absolute !important;
+            width: 0px !important;
+            height: 0px !important;
+            padding: 0 !important;
+            margin: 0 !important;
+            opacity: 0 !important;
+            overflow: hidden !important;
+            pointer-events: none !important;
+            border: none !important;
+        }
+        </style>
+    """, unsafe_allow_html=True)
+
+    components.html("""
+    <script>
+    if (!window.parent.document.body.dataset.cardListenerAdded) {
+        window.parent.document.body.addEventListener('click', function(e) {
+            const card = e.target.closest('.home-card');
+            if (card) {
+                const col = card.closest('[data-testid="column"]');
+                if (col) {
+                    const btn = col.querySelector('button');
+                    if (btn) btn.click();
+                }
+            }
+        });
+        window.parent.document.body.dataset.cardListenerAdded = 'true';
+    }
+    </script>
+    """, height=0)
 
 
 def render_photobooth_page():
