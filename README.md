@@ -1,94 +1,147 @@
-# 📸 AWS SBG AI Photo Booth
+# 🎞️ AFTER HOURS 1.0 — Standalone Photostrip Experience
 
-**Crafted by Ankitha Jade and Sadhana S**
-Built for **AWS Student Builder Group, DBIT — Vignanotsava 2k26**
+**An Inter-College 24-Hour Technical Hackathon**  
+Organized by: **Department of CSE, Don Bosco Institute of Technology (DBIT)** × **AWS Student Builder Group DBIT**  
+Powered by: **Unstop** | Co-powered by: **Tridha**  
+Event Dates: **30th & 31st October, 2026**
 
 ---
 
 ## 🌟 Overview
 
-The **AI Photo Booth** is an interactive, event-ready web application built with Streamlit and powered by AWS cloud services. Designed to handle heavy event traffic, the app provides a seamless and futuristic photo booth experience directly from the browser.
+This repository hosts the **Standalone Photostrip Booth** built for the **AFTER HOURS 1.0** hackathon. It replaces the old multi-mode AI Photo Booth with a dedicated, high-performance, standalone 4-photo photostrip experience tailored to the hackathon's brand identity.
 
 ### ✨ Features
 
-* **Two Immersive Modes:**
-  * **Photobooth:** Capture a single frame, enhanced with real-time AWS Rekognition. The AI analyzes emotions, age, and assigns a unique, fun personality trait and vibe check to the user.
-  * **Photostrip:** A classic 4-photo capture sequence with customizable vintage/B&W filters and printable layout templates.
-* **Real-time Live Camera:** High-performance, zero-lag WebRTC camera feed natively embedded in the browser.
-* **Instant Cloud Delivery:** Seamless integration with **AWS S3**. Photos are uploaded instantly, generating a mobile-responsive QR code for users to scan, view, and download their high-res images on the spot.
-* **Futuristic UI/UX:** Built with premium typography (Space Grotesk), neon gradients, glassmorphism, and smooth micro-animations.
+* **Direct Photostrip Experience:** Opens directly into the 4-photo capture workflow without intermediate navigation, landing pages, or legacy single-booth modes.
+* **Official Hackathon Visual Theme:** Styled with the official *AFTER HOURS 1.0* aesthetic (radiant cyber orange, deep dark obsidian tech background, architectural grid, and custom event badges).
+* **Live Camera with WebRTC:** Zero-latency, browser-based camera feed (4:3 ratio, selfie-mirrored) with public Google STUN server configuration for cross-network WebRTC reliability.
+* **4 Curated Strip Templates:**
+  * **After Hours (Official):** Dedicated hackathon frame featuring official event typography and styling.
+  * **Retro Event:** Classic multi-slot layout.
+  * **Neon Party:** Vibrant event border.
+  * **Classic Film:** Analog film-strip layout.
+* **Real-time Live Filters:** Instant switching between **Color**, **Black & White**, and **Vintage / Retro** with 0-latency precomputed LUTs.
+* **Automated 4-Photo Capture:** Sequential 3-second countdowns per photo with screen flash animation and progress tracking.
+* **High-Quality Compositing:** Automatic cover-scaling, center-cropping, and alpha-layering beneath transparent PNG templates at 736 × 1308 resolution.
+* **Instant QR Code Sharing:** Automatic S3 upload generating a mobile-responsive companion HTML share page with native Web Share API integration.
+* **Local Fallback Download:** Direct PNG download button (`Download Photostrip`) is always available on the booth screen even without AWS credentials or cloud connectivity.
 
 ---
 
 ## 🏗️ Architecture & Technologies
 
-* **Frontend & Backend Framework:** [Streamlit](https://streamlit.io/)
-* **Camera Streaming:** [streamlit-webrtc](https://github.com/whitphx/streamlit-webrtc)
-* **Image Processing:** OpenCV (`cv2`) and Pillow (`PIL`)
-* **Cloud Infrastructure:** Boto3 (AWS Python SDK)
-  * **AWS Rekognition:** Facial analysis and emotion detection.
-  * **AWS S3:** Object storage and public hosting for instant sharing.
-* **QR Generation:** `qrcode`
+* **Application Framework:** [Streamlit](https://streamlit.io/)
+* **Camera Streaming:** [streamlit-webrtc](https://github.com/whitphx/streamlit-webrtc) with STUN peer connectivity
+* **Image Processing:** [OpenCV Headless](https://pypi.org/project/opencv-python-headless/) & [Pillow](https://python-pillow.org/)
+* **QR Code Generation:** [qrcode](https://pypi.org/project/qrcode/)
+* **Cloud Storage & Delivery:** [Boto3](https://boto3.amazonaws.com/v1/documentation/api/latest/index.html) (AWS S3)
 
 ---
 
 ## 🚀 Getting Started
 
-### Prerequisites
-
-You need Python 3.10+ and an AWS account with an S3 bucket and Rekognition access.
-
 ### 1. Installation
 
-Clone the repository and install the dependencies:
-
 ```bash
-git clone https://github.com/your-username/aws-photobooth.git
+git clone -b hackathon-photostrip https://github.com/ankithajade/aws-photobooth.git
 cd aws-photobooth
 pip install -r requirements.txt
 ```
 
-### 2. AWS Credentials Setup
+### 2. Local Configuration (`secrets.toml`)
 
-Configure your AWS credentials on the local machine where the app will run.
-
+Copy the template:
 ```bash
-aws configure
+cp .streamlit/secrets.toml.example .streamlit/secrets.toml
 ```
 
-Ensure the IAM user has permissions for:
-* `s3:PutObject` (for your specific bucket)
-* `rekognition:DetectFaces`
-
-Update the S3 bucket name in `app.py`:
-```python
+Edit `.streamlit/secrets.toml`:
+```toml
+AWS_ACCESS_KEY_ID = "YOUR_AWS_ACCESS_KEY_ID"
+AWS_SECRET_ACCESS_KEY = "YOUR_AWS_SECRET_ACCESS_KEY"
+AWS_DEFAULT_REGION = "ap-south-1"
 S3_BUCKET = "your-s3-bucket-name"
+
+# Set to true only if your bucket has a public read policy configured.
+# If false (default), secure 48-hour presigned URLs are used automatically.
+S3_USE_PUBLIC_URLS = false
+
+# Optional: Add AWS_SESSION_TOKEN if using temporary STS/Academy credentials
+# AWS_SESSION_TOKEN = "YOUR_SESSION_TOKEN"
 ```
 
-### 3. Run the Application
+> **Security Note:** `.streamlit/secrets.toml` is ignored by Git and must never be committed.
 
-Start the Streamlit server:
+### 3. Run Application
 
 ```bash
 streamlit run app.py
 ```
 
-The app will become available at `http://localhost:8501`.
+Access the booth at `http://localhost:8501`.
 
 ---
 
-## 🧪 Testing & Optimization
+## ☁️ AWS & S3 Configuration Guide
 
-This app has been audited and stress-tested for 100+ users.
-* **Zero Backend Video Load:** Camera frames are processed strictly client-side via WebRTC.
-* **Heavy Asset Caching:** Streamlit `@st.cache_resource` is used for high-res templates to eliminate loading lag.
-* **Collision-Proof Uploads:** S3 filenames use random UUIDs alongside timestamps to ensure massive event traffic never overwrites concurrent captures.
+To enable mobile QR code scanning and cloud uploads:
+
+### 1. S3 Bucket Setup
+1. Create a bucket in your AWS account (e.g. `afterhours-photostrip-2026`).
+2. Region: `ap-south-1` (or your preferred region).
+3. **CORS Configuration:** In your S3 bucket permissions, add CORS:
+```json
+[
+  {
+    "AllowedHeaders": ["*"],
+    "AllowedMethods": ["GET", "HEAD"],
+    "AllowedOrigins": ["*"],
+    "ExposeHeaders": []
+  }
+]
+```
+
+### 2. IAM Policy Requirements
+The IAM user or role executing the application requires only minimal S3 permissions:
+```json
+{
+  "Version": "2012-10-17",
+  "Statement": [
+    {
+      "Effect": "Allow",
+      "Action": [
+        "s3:PutObject",
+        "s3:GetObject"
+      ],
+      "Resource": "arn:aws:s3:::your-s3-bucket-name/*"
+    }
+  ]
+]
+```
+*(Notice: No Rekognition or administrative IAM permissions are needed!)*
+
+### 3. Private vs Public Buckets
+* **Default (Recommended):** The bucket can keep **Block Public Access enabled**. The application generates presigned URLs valid for 48 hours for both the strip image and companion HTML page.
+* **Public/CloudFront:** If you host strips behind CloudFront or static website hosting, set `S3_USE_PUBLIC_URLS = true` in secrets.
 
 ---
 
-## 👥 Authors
+## 🌐 Cloud Deployment (Streamlit Community Cloud / Server)
 
-- **Ankitha Jade**
-- **Sadhana S**
+1. Fork or push the `hackathon-photostrip` branch to GitHub.
+2. Link your repo on [Streamlit Community Cloud](https://share.streamlit.io).
+3. Set the **Main file path** to `app.py`.
+4. Under **Advanced Settings > Secrets**, paste the contents of your `.streamlit/secrets.toml`.
+5. Deploy!
+   * *Note on Camera:* Browsers require HTTPS to grant camera permissions (`getUserMedia`). Streamlit Community Cloud provides automatic SSL/HTTPS.
 
-Built with ❤️ for **AWS SBG DBIT**.
+---
+
+## 👥 Student Coordinators & Event Leads
+
+- **Madhu T K** — AWS SBG Leader, DBIT
+- **Ankitha Jade** — Student Coordinator (+91 6360024049)
+- **Sadhana S** — Student Coordinator (+91 9141800861)
+
+Built for **AFTER HOURS 1.0** — Department of CSE, DBIT × AWS Student Builder Group DBIT.

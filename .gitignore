@@ -131,7 +131,9 @@ dmypy.json
 cython_debug/
 
 # Streamlit config and secrets
-.streamlit/
+.streamlit/secrets.toml
+.streamlit/*secrets*.toml
+
 
 # Visual Studio Code settings
 .vscode/
