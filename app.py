@@ -27,6 +27,7 @@ from io import BytesIO
 
 import av
 import boto3
+from botocore.client import Config
 from botocore.exceptions import ClientError, BotoCoreError
 import cv2
 import numpy as np
@@ -405,26 +406,44 @@ def get_s3_config():
 def get_s3_client():
     """Initialize a boto3 S3 client safely without logging sensitive info."""
     cfg = get_s3_config()
+    region = cfg["region"] or "ap-south-1"
+
+    # Regional endpoint and SigV4 configuration are essential for non-us-east-1 buckets
+    # to avoid 'SignatureDoesNotMatch' / 'AuthorizationQueryParametersError' caused by
+    # default global s3.amazonaws.com virtual host routing.
+    s3_config = Config(
+        region_name=region,
+        signature_version="s3v4",
+        s3={"addressing_style": "virtual"},
+    )
+    endpoint_url = f"https://s3.{region}.amazonaws.com"
 
     if cfg["access_key"] and cfg["secret_key"]:
         kwargs = {
             "service_name": "s3",
             "aws_access_key_id": cfg["access_key"],
             "aws_secret_access_key": cfg["secret_key"],
-            "region_name": cfg["region"],
+            "region_name": region,
+            "endpoint_url": endpoint_url,
+            "config": s3_config,
         }
         if cfg["token"]:
             kwargs["aws_session_token"] = cfg["token"]
         try:
-            return boto3.client(**kwargs), cfg["bucket"], cfg["region"], cfg["use_public_urls"]
-        except Exception as e:
-            return None, cfg["bucket"], cfg["region"], cfg["use_public_urls"]
+            return boto3.client(**kwargs), cfg["bucket"], region, cfg["use_public_urls"]
+        except Exception:
+            return None, cfg["bucket"], region, cfg["use_public_urls"]
 
     # Fallback to AWS default credentials chain (IAM Role, ECS task, ~/.aws/credentials)
     try:
-        return boto3.client("s3", region_name=cfg["region"]), cfg["bucket"], cfg["region"], cfg["use_public_urls"]
+        return (
+            boto3.client("s3", region_name=region, endpoint_url=endpoint_url, config=s3_config),
+            cfg["bucket"],
+            region,
+            cfg["use_public_urls"],
+        )
     except Exception:
-        return None, cfg["bucket"], cfg["region"], cfg["use_public_urls"]
+        return None, cfg["bucket"], region, cfg["use_public_urls"]
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -916,9 +935,34 @@ for k, v in _DEFAULTS.items():
         st.session_state[k] = v
 
 
-def _reset_session():
-    """Reset capture state for a clean new session."""
-    st.session_state.camera_run_id += 1
+# Module-level static WebRTC configuration (avoids object reference churn across reruns)
+RTC_CONFIGURATION = {"iceServers": [{"urls": ["stun:stun.l.google.com:19302"]}]}
+MEDIA_STREAM_CONSTRAINTS = {
+    "video": {
+        "width": {"ideal": 1280},
+        "height": {"ideal": 720},
+        "frameRate": {"ideal": 30},
+    },
+    "audio": False,
+}
+
+
+def _reset_session(new_camera_session: bool = False):
+    """Reset capture state for a clean new strip session while keeping camera stable."""
+    if new_camera_session:
+        # Gracefully stop existing worker before starting a new camera session
+        old_key = f"photostrip_cam_{st.session_state.camera_run_id}"
+        if old_key in st.session_state:
+            old_ctx = st.session_state[old_key]
+            if hasattr(old_ctx, "_get_worker"):
+                worker = old_ctx._get_worker()
+                if worker:
+                    try:
+                        worker.stop()
+                    except Exception:
+                        pass
+        st.session_state.camera_run_id += 1
+
     st.session_state.mode = "capture"
     st.session_state.captured_photos = []
     st.session_state.final_strip = None
@@ -967,27 +1011,15 @@ if st.session_state.mode == "capture":
 
     # ── LEFT PANEL: Live Camera Feed & Capture Trigger ──────────────────────
     with col_left:
-        st.markdown("""
-        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
-          <h4 style="margin:0; font-family:'Space Grotesk',sans-serif; color:#F8FAFC;">📷 Live Camera</h4>
-          <span class="camera-status-live"><span class="live-dot"></span> LIVE 4:3 FEED</span>
-        </div>
-        """, unsafe_allow_html=True)
+        # Camera streamer with stable key and no auto-reconnect infinite loop
+        cam_key = f"photostrip_cam_{st.session_state.camera_run_id}"
 
         ctx = webrtc_streamer(
-            key=f"booth_{st.session_state.camera_run_id}",
-            desired_playing_state=True,
+            key=cam_key,
             mode=WebRtcMode.SENDRECV,
             video_processor_factory=StripVideoProcessor,
-            rtc_configuration={"iceServers": [{"urls": ["stun:stun.l.google.com:19302"]}]},
-            media_stream_constraints={
-                "video": {
-                    "width": {"ideal": 1280},
-                    "height": {"ideal": 720},
-                    "frameRate": {"ideal": 30},
-                },
-                "audio": False,
-            },
+            rtc_configuration=RTC_CONFIGURATION,
+            media_stream_constraints=MEDIA_STREAM_CONSTRAINTS,
             async_processing=True,
             video_html_attrs=VideoHTMLAttributes(
                 autoPlay=True,
@@ -1005,6 +1037,20 @@ if st.session_state.mode == "capture":
                 playsInline=True,
             ),
         )
+
+        is_cam_active = bool(ctx.state and ctx.state.playing)
+        status_html = (
+            '<span class="camera-status-live"><span class="live-dot"></span> LIVE 4:3 FEED</span>'
+            if is_cam_active
+            else '<span style="color:#94A3B8; font-family:\'JetBrains Mono\',monospace; font-size:0.75rem;">● CLICK START TO OPEN CAMERA</span>'
+        )
+
+        st.markdown(f"""
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
+          <h4 style="margin:0; font-family:'Space Grotesk',sans-serif; color:#F8FAFC;">📷 Live Camera</h4>
+          {status_html}
+        </div>
+        """, unsafe_allow_html=True)
 
         # Synchronize live filter on video processor
         if ctx.video_processor:
@@ -1024,8 +1070,8 @@ if st.session_state.mode == "capture":
         )
 
         if start_clicked:
-            if not ctx.video_processor:
-                st.warning("⚠️ Please start your camera by clicking 'START' above.")
+            if not ctx.state.playing or not ctx.video_processor:
+                st.warning("⚠️ Please start your camera by clicking 'START' above first.")
             elif ctx.video_processor.frame_bgr is None:
                 st.warning("⏳ Waiting for camera feed to initialize...")
             else:
@@ -1241,13 +1287,7 @@ elif st.session_state.mode == "result":
             st.image(qr_buf.getvalue(), width=240)
             st.markdown('</div>', unsafe_allow_html=True)
 
-            st.markdown(f"""
-            <div style="margin-top:10px;">
-              <a href="{url}" target="_blank" style="color:#FF8800; text-decoration:none; font-family:'JetBrains Mono',monospace; font-size:0.85rem;">
-                🔗 Open Mobile Share Page &rarr;
-              </a>
-            </div>
-            """, unsafe_allow_html=True)
+            st.link_button("🔗 Open Mobile Share Page", url, use_container_width=True)
 
         else:
             # Informational card when S3 is unavailable or failed
